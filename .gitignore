@@ -1,2 +1,7 @@
 target
 Cargo.lock
+
+# For the development environment described in climb-db/README.md
+test-db
+logfile
+.env
