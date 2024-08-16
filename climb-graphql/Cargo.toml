@@ -4,3 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+async-graphql = "7.0.7"
+async-graphql-axum = "7.0.7"
+axum = "0.7.5"
+climb-db = { version = "0.1.0", path = "../climb-db" }
+diesel = { version = "2.2.2", features = ["postgres", "r2d2"] }
+r2d2 = "0.8.10"
+tokio = { version = "1.39.2", features = ["rt-multi-thread"] }
