@@ -7,3 +7,9 @@ pub struct Climb {
     pub id: i32,
     pub names: Vec<Option<String>>,
 }
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climbs)]
+pub struct NewClimb {
+    pub names: Vec<Option<String>>,
+}

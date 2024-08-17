@@ -50,3 +50,37 @@ impl QueryRoot {
         }
     }
 }
+
+pub struct MutationRoot;
+
+#[Object]
+impl MutationRoot {
+    async fn add_climb<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Adds a climb"
+        )]
+        names: Vec<String>,
+    ) -> Option<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+
+        let conn = pool.get();
+        if conn.is_err() {
+            // How can I propogate errors?
+            return None;
+        }
+
+        use climb_db::models::{ NewClimb, Climb };
+        use climb_db::schema::climbs;
+
+        let new_climb = NewClimb { names: names.into_iter().map(Some).collect() };
+        let result_climb = diesel::insert_into(climbs::table)
+            .values(&new_climb)
+            .returning(Climb::as_returning())
+            .get_result(&mut conn.unwrap())
+            .expect("Error on saving climb");
+
+        Some(Climb(result_climb))
+    }
+}

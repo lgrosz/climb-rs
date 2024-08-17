@@ -1,12 +1,13 @@
 mod schema;
 
-use async_graphql::{http::GraphiQLSource, EmptyMutation, EmptySubscription, Schema};
+use async_graphql::{http::GraphiQLSource, EmptySubscription, Schema};
 use async_graphql_axum::GraphQL;
 use axum::{
     response::{self, IntoResponse},
     routing::get,
     Router,
 };
+use schema::MutationRoot;
 use tokio::net::TcpListener;
 use crate::schema::QueryRoot;
 
@@ -27,7 +28,7 @@ async fn main() {
         .build(manager)
         .expect("Failed to create pool.");
 
-    let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+    let schema = Schema::build(QueryRoot, MutationRoot, EmptySubscription)
         .data(pool.clone())
         .finish();
 
