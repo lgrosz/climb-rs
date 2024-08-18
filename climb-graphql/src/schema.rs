@@ -91,23 +91,23 @@ impl MutationRoot {
             desc = "Removes climb with given id"
         )]
         id: i32,
-    ) -> bool {
+    ) -> Option<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
         let conn = pool.get();
         if conn.is_err() {
             // How can I propogate errors?
-            return false;
+            return None;
         }
 
+        use climb_db::models::Climb;
         use climb_db::schema::climbs::dsl::{ climbs, id as climb_id };
 
-        let num_deleted = diesel::delete(climbs.filter(climb_id.eq(id))).execute(&mut conn.unwrap());
+        let climb = diesel::delete(climbs.filter(climb_id.eq(id)))
+            .returning(Climb::as_returning())
+            .get_result(&mut conn.unwrap())
+            .expect("Error removing climb");
 
-        if num_deleted.is_err() {
-            return false;
-        }
-
-        num_deleted.unwrap() > 0
+        Some(Climb(climb))
     }
 }
