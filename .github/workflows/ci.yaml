@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+    - main
+  schedule:
+  - cron: '00 01 * * *'
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        - macos-latest
+        toolchain:
+        - stable
+        - beta
+        - nightly
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}
+    - name: Install PostgreSQL on macOS
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew update
+        brew install postgresql@16
+        brew link postgresql@16
+    - name: Run tests
+      run: cargo test --all-features
+
