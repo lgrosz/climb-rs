@@ -5,6 +5,19 @@ use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use climb_db::models;
 
+pub struct Area(models::Area);
+
+#[Object]
+impl Area {
+    async fn id(&self) -> &i32 {
+        &self.0.id
+    }
+
+    async fn names(&self) -> &Vec<Option<String>> {
+        &self.0.names
+    }
+}
+
 pub struct Climb(models::Climb);
 
 #[Object]
@@ -35,6 +48,34 @@ pub struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
+    async fn area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Returns the area with the given id"
+        )]
+        id: i32,
+    ) -> Option<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+
+        let conn = pool.get();
+        if conn.is_err() {
+            // How can I propogate errors?
+            return None;
+        }
+
+        use climb_db::schema::areas::dsl::areas;
+
+        let area = areas
+            .find(id)
+            .first::<models::Area>(&mut conn.unwrap());
+
+        match area {
+            Ok(_) => Some(Area(area.unwrap())),
+            Err(_) => None,
+        }
+    }
+
     async fn climb<'a>(
         &self,
         ctx: &Context<'a>,
@@ -96,6 +137,62 @@ pub struct MutationRoot;
 
 #[Object]
 impl MutationRoot {
+    async fn add_area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Adds an area"
+        )]
+        names: Vec<String>,
+    ) -> Option<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+
+        let conn = pool.get();
+        if conn.is_err() {
+            // How can I propogate errors?
+            return None;
+        }
+
+        use climb_db::models::{ NewArea, Area };
+        use climb_db::schema::areas;
+
+        let new_area = NewArea { names: names.into_iter().map(Some).collect() };
+        let result_area = diesel::insert_into(areas::table)
+            .values(&new_area)
+            .returning(Area::as_returning())
+            .get_result(&mut conn.unwrap())
+            .expect("Error on saving area");
+
+        Some(Area(result_area))
+    }
+
+    async fn remove_area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Removes area with given id"
+        )]
+        id: i32,
+    ) -> Option<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+
+        let conn = pool.get();
+        if conn.is_err() {
+            // How can I propogate errors?
+            return None;
+        }
+
+        use climb_db::models::Area;
+        use climb_db::schema::areas::dsl::{ areas, id as area_id };
+
+        let area = diesel::delete(areas.filter(area_id.eq(id)))
+            .returning(Area::as_returning())
+            .get_result(&mut conn.unwrap())
+            .expect("Error removing area");
+
+        Some(Area(area))
+    }
+
     async fn add_climb<'a>(
         &self,
         ctx: &Context<'a>,
