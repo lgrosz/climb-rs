@@ -1,6 +1,6 @@
 # climb-rs
 
-![CI](https://github.com/lgrosz/climb-rs/actions/workflows/ci.yaml/badge.svg)
+[![CI](https://github.com/lgrosz/climb-rs/actions/workflows/ci.yaml/badge.svg)](https://github.com/lgrosz/climb-rs/actions/workflows/ci.yaml)
 
 A Rust package for climbing programs, databases, and more.
 
