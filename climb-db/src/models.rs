@@ -41,3 +41,20 @@ pub struct Formation {
 pub struct NewFormation {
     pub names: Vec<Option<String>>,
 }
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::climb_belongs_to)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ClimbBelongsTo {
+    pub climb_id: i32,
+    pub area_id: Option<i32>,
+    pub formation_id: Option<i32>,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climb_belongs_to)]
+pub struct NewClimbBelongsTo {
+    pub climb_id: i32,
+    pub area_id: Option<i32>,
+    pub formation_id: Option<i32>,
+}
