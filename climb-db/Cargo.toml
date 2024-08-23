@@ -10,3 +10,7 @@ diesel_migrations = { version = "2.2.0", features = ["postgres"] }
 [[test]]
 name = "migrations"
 path = "tests/migrations.rs"
+
+[[test]]
+name = "climb-belongs-to"
+path = "tests/climb-belongs-to.rs"
