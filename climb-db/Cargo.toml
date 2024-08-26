@@ -14,3 +14,7 @@ path = "tests/migrations.rs"
 [[test]]
 name = "climb-belongs-to"
 path = "tests/climb-belongs-to.rs"
+
+[[test]]
+name = "formation-belongs-to"
+path = "tests/formation-belongs-to.rs"
