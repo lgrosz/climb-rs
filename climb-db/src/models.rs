@@ -58,3 +58,20 @@ pub struct NewClimbBelongsTo {
     pub area_id: Option<i32>,
     pub formation_id: Option<i32>,
 }
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::formation_belongs_to)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct FormationBelongsTo {
+    pub formation_id: i32,
+    pub area_id: Option<i32>,
+    pub super_formation_id: Option<i32>,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::formation_belongs_to)]
+pub struct NewFormationBelongsTo {
+    pub formation_id: i32,
+    pub area_id: Option<i32>,
+    pub super_formation_id: Option<i32>,
+}
