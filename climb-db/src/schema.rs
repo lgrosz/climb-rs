@@ -1,6 +1,13 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    area_belongs_to (area_id) {
+        area_id -> Int4,
+        super_area_id -> Int4,
+    }
+}
+
+diesel::table! {
     areas (id) {
         id -> Int4,
         names -> Array<Nullable<Text>>,
@@ -43,6 +50,7 @@ diesel::joinable!(climb_belongs_to -> formations (formation_id));
 diesel::joinable!(formation_belongs_to -> areas (area_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    area_belongs_to,
     areas,
     climb_belongs_to,
     climbs,

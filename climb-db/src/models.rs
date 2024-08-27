@@ -75,3 +75,18 @@ pub struct NewFormationBelongsTo {
     pub area_id: Option<i32>,
     pub super_formation_id: Option<i32>,
 }
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::area_belongs_to)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct AreaBelongsTo {
+    pub area_id: i32,
+    pub super_area_id: i32,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::area_belongs_to)]
+pub struct NewAreaBelongsTo {
+    pub area_id: i32,
+    pub super_area_id: i32,
+}
