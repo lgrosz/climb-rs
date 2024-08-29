@@ -1,8 +1,7 @@
 -- Your SQL goes here
 CREATE TABLE area_belongs_to (
     area_id INTEGER PRIMARY KEY REFERENCES areas(id) ON DELETE CASCADE,
-    super_area_id INTEGER NOT NULL,
-    CONSTRAINT fk_areas FOREIGN KEY (super_area_id) REFERENCES areas(id) ON DELETE RESTRICT
+    super_area_id INTEGER NOT NULL REFERENCES areas(id) ON DELETE RESTRICT
 );
 
 CREATE FUNCTION prevent_area_belongs_to_cycle() RETURNS trigger AS $$
