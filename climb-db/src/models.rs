@@ -90,3 +90,51 @@ pub struct NewAreaBelongsTo {
     pub area_id: i32,
     pub super_area_id: i32,
 }
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::grade_types)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct GradeType {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::grade_types)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewGradeType {
+    pub name: String,
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::grades)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct Grade {
+    pub id: i32,
+    pub grade_type_id: i32,
+    pub value: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::grades)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewGrade {
+    pub grade_type_id: i32,
+    pub value: String,
+}
+
+#[derive(Queryable)]
+#[diesel(table_name = crate::schema::climb_grades)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ClimbGrade {
+    pub climb_id: i32,
+    pub grade_id: i32,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climb_grades)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewClimbGrade {
+    pub climb_id: i32,
+    pub grade_id: i32,
+}
