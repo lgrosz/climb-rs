@@ -6,6 +6,7 @@ const Configuration = {
       'ci',
       'repo',
       'db',
+      'grades',
       'graphql',
     ]],
   },
