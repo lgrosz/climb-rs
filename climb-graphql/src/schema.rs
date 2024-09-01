@@ -268,7 +268,10 @@ impl MutationRoot {
         use climb_db::models::{ NewFormation, Formation };
         use climb_db::schema::formations;
 
-        let new_formation = NewFormation { names: names.into_iter().map(Some).collect() };
+        let new_formation = NewFormation {
+            names: names.into_iter().map(Some).collect(),
+            ..Default::default()
+        };
         let result_formation = diesel::insert_into(formations::table)
             .values(&new_formation)
             .returning(Formation::as_returning())
