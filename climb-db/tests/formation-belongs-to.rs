@@ -2,7 +2,6 @@ use climb_db::models::{NewFormation, Formation, NewArea, Area, NewFormationBelon
 use diesel::prelude::*;
 use common::TestDatabase;
 use diesel::RunQueryDsl;
-use diesel_migrations::MigrationHarness;
 
 mod common;
 
@@ -11,10 +10,8 @@ mod common;
 #[test]
 pub fn cascade_area() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__cascade_area");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__cascade_area");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -62,10 +59,8 @@ pub fn cascade_area() {
 #[test]
 pub fn cascade_super_formation() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__cascade_super_formation");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__cascade_super_formation");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -111,10 +106,8 @@ pub fn cascade_super_formation() {
 #[test]
 pub fn foreign_key() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__foreign_key");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__foreign_key");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -152,10 +145,8 @@ pub fn foreign_key() {
 #[test]
 pub fn one_parent() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__one_parent");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__one_parent");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -208,10 +199,8 @@ pub fn one_parent() {
 #[test]
 pub fn restrict_area() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__restrict_area");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__restrict_area");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -253,10 +242,8 @@ pub fn restrict_area() {
 #[test]
 pub fn restrict_super_formation() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__restrict_super_formation");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__restrict_super_formation");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -295,10 +282,8 @@ pub fn restrict_super_formation() {
 #[test]
 pub fn no_self_parent() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__no_self_parent");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__no_self_parent");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 
@@ -325,10 +310,8 @@ pub fn no_self_parent() {
 #[test]
 pub fn no_cycles() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__formation_belongs_to__no_cycles");
-
+    let mut db = TestDatabase::with_migrations("test__formation_belongs_to__no_cycles");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::formations;
 

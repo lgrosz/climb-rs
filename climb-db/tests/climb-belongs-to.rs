@@ -2,7 +2,6 @@ use climb_db::models::{NewClimb, Climb, NewArea, Area, NewFormation, Formation, 
 use diesel::prelude::*;
 use common::TestDatabase;
 use diesel::RunQueryDsl;
-use diesel_migrations::MigrationHarness;
 
 mod common;
 
@@ -10,10 +9,8 @@ mod common;
 #[test]
 pub fn cascade() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__climb_belongs_to__cascade");
-
+    let mut db = TestDatabase::with_migrations("test__climb_belongs_to__cascade");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::climbs;
 
@@ -61,10 +58,8 @@ pub fn cascade() {
 #[test]
 pub fn foreign_key() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__climb_belongs_to__foreign_key");
-
+    let mut db = TestDatabase::with_migrations("test__climb_belongs_to__foreign_key");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::climbs;
 
@@ -102,10 +97,8 @@ pub fn foreign_key() {
 #[test]
 pub fn one_parent() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__climb_belongs_to__one_parent");
-
+    let mut db = TestDatabase::with_migrations("test__climb_belongs_to__one_parent");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::climbs;
 
@@ -160,10 +153,8 @@ pub fn one_parent() {
 #[test]
 pub fn restrict() {
     // TODO [TestName](https://doc.rust-lang.org/test/enum.TestName.html)
-    let mut db = TestDatabase::new("test__climb_belongs_to__restrict");
-
+    let mut db = TestDatabase::with_migrations("test__climb_belongs_to__restrict");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::climbs;
 

@@ -1,4 +1,5 @@
 use diesel::{Connection, PgConnection, RunQueryDsl};
+use diesel_migrations::MigrationHarness;
 use std::env;
 
 pub struct TestDatabase {
@@ -28,6 +29,14 @@ impl TestDatabase {
             db_url: database_url.to_string(),
             db_name: db_name.to_string(),
         }
+    }
+
+    #[allow(dead_code)] // TODO Why does this method show up as dead when its public?
+    pub fn with_migrations(db_name: &str) -> Self {
+        let mut db = TestDatabase::new(db_name);
+        let conn = db.connection();
+        conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to run pending migrations");
+        db
     }
 
     pub fn connection(&mut self) -> &mut PgConnection {
