@@ -1,6 +1,9 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     area_belongs_to (area_id) {
         area_id -> Int4,
         super_area_id -> Int4,
@@ -8,6 +11,9 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     areas (id) {
         id -> Int4,
         names -> Array<Nullable<Text>>,
@@ -15,6 +21,9 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climb_belongs_to (climb_id) {
         climb_id -> Int4,
         area_id -> Nullable<Int4>,
@@ -23,6 +32,9 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climb_grades (climb_id, grade_id) {
         climb_id -> Int4,
         grade_id -> Int4,
@@ -30,6 +42,9 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climbs (id) {
         id -> Int4,
         names -> Array<Nullable<Text>>,
@@ -37,6 +52,9 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     formation_belongs_to (formation_id) {
         formation_id -> Int4,
         area_id -> Nullable<Int4>,
@@ -45,13 +63,20 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     formations (id) {
         id -> Int4,
         names -> Array<Nullable<Text>>,
+        location -> Nullable<Geometry>,
     }
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     grade_types (id) {
         id -> Int4,
         #[max_length = 100]
@@ -60,11 +85,30 @@ diesel::table! {
 }
 
 diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     grades (id) {
         id -> Int4,
         grade_type_id -> Int4,
         #[max_length = 50]
         value -> Varchar,
+    }
+}
+
+diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
+    spatial_ref_sys (srid) {
+        srid -> Int4,
+        #[max_length = 256]
+        auth_name -> Nullable<Varchar>,
+        auth_srid -> Nullable<Int4>,
+        #[max_length = 2048]
+        srtext -> Nullable<Varchar>,
+        #[max_length = 2048]
+        proj4text -> Nullable<Varchar>,
     }
 }
 
@@ -86,4 +130,5 @@ diesel::allow_tables_to_appear_in_same_query!(
     formations,
     grade_types,
     grades,
+    spatial_ref_sys,
 );

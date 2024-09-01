@@ -1,4 +1,5 @@
 use diesel::prelude::*;
+use postgis_diesel::types::*;
 
 #[derive(Queryable, Selectable)]
 #[diesel(table_name = crate::schema::areas)]
@@ -34,12 +35,14 @@ pub struct NewClimb {
 pub struct Formation {
     pub id: i32,
     pub names: Vec<Option<String>>,
+    pub location: Option<Point>,
 }
 
 #[derive(Insertable, Default)]
 #[diesel(table_name = crate::schema::formations)]
 pub struct NewFormation {
     pub names: Vec<Option<String>>,
+    pub location: Option<Point>,
 }
 
 #[derive(Queryable, Selectable)]

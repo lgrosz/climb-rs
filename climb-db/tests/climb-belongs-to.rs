@@ -23,7 +23,10 @@ pub fn cascade() {
     use climb_db::schema::formations;
 
     let formation = diesel::insert_into(formations::table)
-        .values(NewFormation { names: vec![Some("North Nostril Cave".to_string())] })
+        .values(NewFormation {
+            names: vec![Some("North Nostril Cave".to_string())],
+            ..Default::default()
+        })
         .returning(Formation::as_returning())
         .get_result(conn)
         .expect("Failed to insert formation");
@@ -111,7 +114,10 @@ pub fn one_parent() {
     use climb_db::schema::formations;
 
     let formation = diesel::insert_into(formations::table)
-        .values(NewFormation { names: vec![Some("North Nostril Cave".to_string())] })
+        .values(NewFormation {
+            names: vec![Some("North Nostril Cave".to_string())],
+            ..Default::default()
+        })
         .returning(Formation::as_returning())
         .get_result(conn)
         .expect("Failed to insert formation");
@@ -167,7 +173,10 @@ pub fn restrict() {
     use climb_db::schema::formations;
 
     let formation = diesel::insert_into(formations::table)
-        .values(NewFormation { names: vec![Some("North Nostril Cave".to_string())] })
+        .values(NewFormation {
+            names: vec![Some("North Nostril Cave".to_string())],
+            ..Default::default()
+        })
         .returning(Formation::as_returning())
         .get_result(conn)
         .expect("Failed to insert formation");
