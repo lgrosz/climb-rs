@@ -37,8 +37,7 @@ impl TestDatabase {
 
 impl Drop for TestDatabase {
     fn drop(&mut self) {
-        // take the connection, effectively dropping it
-        self.conn = None;
+        self.conn.take();
 
         let mut conn = PgConnection::establish(&format!("{}/postgres", self.db_url)).expect("");
 
