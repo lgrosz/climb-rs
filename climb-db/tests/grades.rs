@@ -1,16 +1,13 @@
 use common::TestDatabase;
 use diesel::prelude::*;
-use diesel_migrations::MigrationHarness;
 
 mod common;
 
 /// Allows insertion of new, unique, grade type
 #[test]
 fn insert_grade_type() {
-    let mut db = TestDatabase::new("test__grades__insert_grade_type");
-
+    let mut db = TestDatabase::with_migrations("test__grades__insert_grade_type");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::schema::grade_types;
     use climb_db::models::{GradeType, NewGradeType};
@@ -31,10 +28,8 @@ fn insert_grade_type() {
 /// Expect default grade types to exist
 #[test]
 fn default_grade_types() {
-    let mut db = TestDatabase::new("test__grades__default_grade_types");
-
+    let mut db = TestDatabase::with_migrations("test__grades__default_grade_types");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     let default_grade_names = [
         "vermin".to_string(),
@@ -60,10 +55,8 @@ fn default_grade_types() {
 /// Ensures grades get removed when removing their type
 #[test]
 fn grades_cascade_on_grade_type_delete() {
-    let mut db = TestDatabase::new("test__grades__grades_cascade_on_grade_type_delete");
-
+    let mut db = TestDatabase::with_migrations("test__grades__grades_cascade_on_grade_type_delete");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::models::GradeType;
     use climb_db::schema::grade_types;
@@ -103,10 +96,8 @@ fn grades_cascade_on_grade_type_delete() {
 // Ensures climb grade row removed when grade deleted
 #[test]
 fn climb_grades_cascade_on_grade_delete() {
-    let mut db = TestDatabase::new("test__grades__grades_cascade_on_grade_delete");
-
+    let mut db = TestDatabase::with_migrations("test__grades__grades_cascade_on_grade_delete");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::models::GradeType;
     use climb_db::schema::grade_types;
@@ -164,10 +155,8 @@ fn climb_grades_cascade_on_grade_delete() {
 // Ensures climb grade row removed when climb deleted
 #[test]
 fn climb_grades_cascade_on_climb_delete() {
-    let mut db = TestDatabase::new("test__grades__grades_cascade_on_climb_delete");
-
+    let mut db = TestDatabase::with_migrations("test__grades__grades_cascade_on_climb_delete");
     let conn = db.connection();
-    conn.run_pending_migrations(climb_db::MIGRATIONS).expect("Failed to initialize database");
 
     use climb_db::models::GradeType;
     use climb_db::schema::grade_types;
