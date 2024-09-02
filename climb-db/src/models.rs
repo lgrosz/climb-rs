@@ -8,7 +8,7 @@ pub struct Area {
     pub names: Vec<Option<String>>,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Default)]
 #[diesel(table_name = crate::schema::areas)]
 pub struct NewArea {
     pub names: Vec<Option<String>>,
@@ -22,7 +22,7 @@ pub struct Climb {
     pub names: Vec<Option<String>>,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Default)]
 #[diesel(table_name = crate::schema::climbs)]
 pub struct NewClimb {
     pub names: Vec<Option<String>>,
@@ -36,7 +36,7 @@ pub struct Formation {
     pub names: Vec<Option<String>>,
 }
 
-#[derive(Insertable)]
+#[derive(Insertable, Default)]
 #[diesel(table_name = crate::schema::formations)]
 pub struct NewFormation {
     pub names: Vec<Option<String>>,
