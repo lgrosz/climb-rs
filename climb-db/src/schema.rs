@@ -45,6 +45,16 @@ diesel::table! {
     use postgis_diesel::sql_types::*;
     use diesel::sql_types::*;
 
+    climb_variations (root_id, variation_id) {
+        root_id -> Int4,
+        variation_id -> Int4,
+    }
+}
+
+diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climbs (id) {
         id -> Int4,
         names -> Array<Nullable<Text>>,
@@ -125,6 +135,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     areas,
     climb_belongs_to,
     climb_grades,
+    climb_variations,
     climbs,
     formation_belongs_to,
     formations,

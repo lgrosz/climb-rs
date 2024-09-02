@@ -146,3 +146,19 @@ pub struct NewClimbGrade {
     pub climb_id: i32,
     pub grade_id: i32,
 }
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climb_variations)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewClimbVariation {
+    pub root_id: i32,
+    pub variation_id: i32,
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::climb_variations)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ClimbVariation {
+    pub root_id: i32,
+    pub variation_id: i32,
+}
