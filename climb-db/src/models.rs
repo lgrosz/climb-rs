@@ -25,6 +25,7 @@ pub struct Climb {
 
 #[derive(Insertable, Default)]
 #[diesel(table_name = crate::schema::climbs)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewClimb {
     pub names: Vec<Option<String>>,
 }
@@ -40,6 +41,7 @@ pub struct Formation {
 
 #[derive(Insertable, Default)]
 #[diesel(table_name = crate::schema::formations)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewFormation {
     pub names: Vec<Option<String>>,
     pub location: Option<Point>,
@@ -56,6 +58,7 @@ pub struct ClimbBelongsTo {
 
 #[derive(Insertable)]
 #[diesel(table_name = crate::schema::climb_belongs_to)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewClimbBelongsTo {
     pub climb_id: i32,
     pub area_id: Option<i32>,
@@ -73,6 +76,7 @@ pub struct FormationBelongsTo {
 
 #[derive(Insertable)]
 #[diesel(table_name = crate::schema::formation_belongs_to)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewFormationBelongsTo {
     pub formation_id: i32,
     pub area_id: Option<i32>,
@@ -89,6 +93,7 @@ pub struct AreaBelongsTo {
 
 #[derive(Insertable)]
 #[diesel(table_name = crate::schema::area_belongs_to)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
 pub struct NewAreaBelongsTo {
     pub area_id: i32,
     pub super_area_id: i32,
