@@ -162,3 +162,36 @@ pub struct ClimbVariation {
     pub root_id: i32,
     pub variation_id: i32,
 }
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climb_description_types)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewClimbDescriptionType {
+    pub name: String,
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::climb_description_types)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ClimbDescriptionType {
+    pub id: i32,
+    pub name: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climb_descriptions)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewClimbDescription {
+    pub climb_id: i32,
+    pub climb_description_type_id: i32,
+    pub value: String,
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::climb_descriptions)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct ClimbDescription {
+    pub climb_id: i32,
+    pub climb_description_type_id: i32,
+    pub value: String,
+}
