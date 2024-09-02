@@ -31,3 +31,7 @@ path = "tests/grades.rs"
 [[test]]
 name = "formation-spacial"
 path = "tests/formation-spacial.rs"
+
+[[test]]
+name = "climb-variations"
+path = "tests/climb-variations.rs"
