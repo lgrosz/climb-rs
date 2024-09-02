@@ -35,6 +35,28 @@ diesel::table! {
     use postgis_diesel::sql_types::*;
     use diesel::sql_types::*;
 
+    climb_description_types (id) {
+        id -> Int4,
+        #[max_length = 100]
+        name -> Varchar,
+    }
+}
+
+diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
+    climb_descriptions (climb_id, climb_description_type_id) {
+        climb_id -> Int4,
+        climb_description_type_id -> Int4,
+        value -> Text,
+    }
+}
+
+diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climb_grades (climb_id, grade_id) {
         climb_id -> Int4,
         grade_id -> Int4,
@@ -125,6 +147,8 @@ diesel::table! {
 diesel::joinable!(climb_belongs_to -> areas (area_id));
 diesel::joinable!(climb_belongs_to -> climbs (climb_id));
 diesel::joinable!(climb_belongs_to -> formations (formation_id));
+diesel::joinable!(climb_descriptions -> climb_description_types (climb_description_type_id));
+diesel::joinable!(climb_descriptions -> climbs (climb_id));
 diesel::joinable!(climb_grades -> climbs (climb_id));
 diesel::joinable!(climb_grades -> grades (grade_id));
 diesel::joinable!(formation_belongs_to -> areas (area_id));
@@ -134,6 +158,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     area_belongs_to,
     areas,
     climb_belongs_to,
+    climb_description_types,
+    climb_descriptions,
     climb_grades,
     climb_variations,
     climbs,
