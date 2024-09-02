@@ -27,3 +27,7 @@ path = "tests/area-belongs-to.rs"
 [[test]]
 name = "grades"
 path = "tests/grades.rs"
+
+[[test]]
+name = "formation-spacial"
+path = "tests/formation-spacial.rs"
