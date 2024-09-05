@@ -7,31 +7,3 @@ edition = "2021"
 diesel = { version = "2.2.2", features = ["postgres"] }
 diesel_migrations = { version = "2.2.0", features = ["postgres"] }
 postgis_diesel = "2.4.1"
-
-[[test]]
-name = "migrations"
-path = "tests/migrations.rs"
-
-[[test]]
-name = "climb-belongs-to"
-path = "tests/climb-belongs-to.rs"
-
-[[test]]
-name = "formation-belongs-to"
-path = "tests/formation-belongs-to.rs"
-
-[[test]]
-name = "area-belongs-to"
-path = "tests/area-belongs-to.rs"
-
-[[test]]
-name = "grades"
-path = "tests/grades.rs"
-
-[[test]]
-name = "formation-spacial"
-path = "tests/formation-spacial.rs"
-
-[[test]]
-name = "climb-variations"
-path = "tests/climb-variations.rs"
