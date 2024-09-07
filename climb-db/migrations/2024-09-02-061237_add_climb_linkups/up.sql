@@ -5,6 +5,7 @@ CREATE TABLE climb_link_ups (
   link_order INT NOT NULL,
   PRIMARY KEY (root_id, link_id),
   CONSTRAINT no_self_reference CHECK (root_id <> link_id),
-  CONSTRAINT valid_order CHECK (link_order > 0)
+  CONSTRAINT valid_order CHECK (link_order > 0),
+  CONSTRAINT unique_order_in_linkup UNIQUE (root_id, link_order)
 );
 
