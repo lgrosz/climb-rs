@@ -1,3 +1,6 @@
+use chrono::NaiveDate;
+use std::ops::Bound;
+
 use diesel::prelude::*;
 use postgis_diesel::types::*;
 
@@ -13,6 +16,74 @@ pub struct Area {
 #[diesel(table_name = crate::schema::areas)]
 pub struct NewArea {
     pub names: Vec<Option<String>>,
+}
+
+#[derive(Queryable)]
+#[diesel(table_name = crate::schema::ascent_grades)]
+#[diesel(primary_key(ascent_id, grade_id))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct AscentGrade {
+    pub ascent_id: i32,
+    pub grade_id: i32,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::ascent_grades)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewAscentGrade {
+    pub ascent_id: i32,
+    pub grade_id: i32,
+}
+
+#[derive(Queryable)]
+#[diesel(table_name = crate::schema::ascent_parties)]
+#[diesel(primary_key(ascent_id, climber_id))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct AscentParty {
+    pub ascent_id: i32,
+    pub climber_id: i32,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::ascent_parties)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewAscentParty {
+    pub ascent_id: i32,
+    pub climber_id: i32,
+}
+
+#[derive(Queryable)]
+#[diesel(table_name = crate::schema::ascents)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct Ascent {
+    pub id: i32,
+    pub climb_id: i32,
+    pub ascent_date: Option<(Bound<NaiveDate>, Bound<NaiveDate>)>,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::ascents)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewAscent {
+    pub climb_id: i32,
+    pub ascent_date: Option<(Bound<NaiveDate>, Bound<NaiveDate>)>,
+}
+
+#[derive(Queryable, Selectable)]
+#[diesel(table_name = crate::schema::climbers)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct Climber {
+    pub id: i32,
+    pub first_name: String,
+    pub last_name: String,
+}
+
+#[derive(Insertable)]
+#[diesel(table_name = crate::schema::climbers)]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct NewClimber {
+    pub first_name: String,
+    pub last_name: String,
 }
 
 #[derive(Queryable, Selectable)]
