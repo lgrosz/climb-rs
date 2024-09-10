@@ -13,8 +13,11 @@ impl Area {
         &self.0.id
     }
 
-    async fn names(&self) -> &Vec<Option<String>> {
-        &self.0.names
+    async fn names(&self) -> Vec<String> {
+        self.0.names
+            .iter()
+            .filter_map(|name| name.clone())
+            .collect()
     }
 }
 
@@ -26,8 +29,11 @@ impl Climb {
         &self.0.id
     }
 
-    async fn names(&self) -> &Vec<Option<String>> {
-        &self.0.names
+    async fn names(&self) -> Vec<String> {
+        self.0.names
+            .iter()
+            .filter_map(|name| name.clone())
+            .collect()
     }
 }
 
@@ -39,8 +45,11 @@ impl Formation {
         &self.0.id
     }
 
-    async fn names(&self) -> &Vec<Option<String>> {
-        &self.0.names
+    async fn names(&self) -> Vec<String> {
+        self.0.names
+            .iter()
+            .filter_map(|name| name.clone())
+            .collect()
     }
 }
 
