@@ -1,4 +1,4 @@
-use async_graphql::{Context, Object};
+use async_graphql::{Context, Object, SimpleObject, InputObject};
 use r2d2::Pool;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
@@ -6,6 +6,13 @@ use diesel::r2d2::ConnectionManager;
 use climb_db::models;
 
 pub struct Area(models::Area);
+
+#[derive(SimpleObject, InputObject)]
+#[graphql(input_name = "KVPairInput")]
+pub struct KVPair {
+    pub key: String,
+    pub value: String,
+}
 
 #[Object]
 impl Area {
@@ -34,6 +41,27 @@ impl Climb {
             .iter()
             .filter_map(|name| name.clone())
             .collect()
+    }
+
+    async fn descriptions<'a>(&self, ctx: &Context<'a>) -> Option<Vec<KVPair>> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::{climb_descriptions, climb_description_types};
+
+        // TODO This would be better if it was async
+        let data = climb_descriptions::table
+            .inner_join(
+                climb_description_types::table.on(
+                    climb_descriptions::climb_description_type_id.eq(climb_description_types::id)
+                    )
+                )
+            .filter(climb_descriptions::climb_id.eq(&self.0.id))
+            .select((climb_description_types::name, climb_descriptions::value))
+            .load::<(String, String)>(&mut conn)
+            .ok()?;
+
+        Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
     }
 }
 
@@ -209,26 +237,61 @@ impl MutationRoot {
             desc = "Adds a climb"
         )]
         names: Vec<String>,
+        #[graphql(
+            desc = "Descriptions to associate with the climb"
+        )]
+        descriptions: Option<Vec<KVPair>>,
     ) -> Option<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        // Start a new transaction
+        let mut conn = pool.get().ok()?;
+        conn.transaction(|conn| {
+            use climb_db::models::{NewClimb, Climb};
+            use climb_db::schema::climbs;
 
-        use climb_db::models::{ NewClimb, Climb };
-        use climb_db::schema::climbs;
+            // Insert the new climb
+            let new_climb = NewClimb { names: names.into_iter().map(Some).collect() };
+            let result_climb = diesel::insert_into(climbs::table)
+                .values(&new_climb)
+                .returning(Climb::as_returning())
+                .get_result::<Climb>(conn)?;
 
-        let new_climb = NewClimb { names: names.into_iter().map(Some).collect() };
-        let result_climb = diesel::insert_into(climbs::table)
-            .values(&new_climb)
-            .returning(Climb::as_returning())
-            .get_result(&mut conn.unwrap())
-            .expect("Error on saving climb");
+            let climb_id = result_climb.id; // Assuming `id` is the primary key field in `Climb`
 
-        Some(Climb(result_climb))
+            use climb_db::schema::climb_description_types;
+
+            let descriptions = descriptions.unwrap_or_default();
+
+            // Map keys to climb_description_type_id
+            let description_keys: Vec<String> = descriptions.iter().map(|kv| kv.key.clone()).collect();
+            let type_ids_map: std::collections::HashMap<String, i32> = climb_description_types::table
+                .filter(climb_description_types::name.eq_any(description_keys))
+                .select((climb_description_types::name, climb_description_types::id))
+                .load::<(String, i32)>(conn)?
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>();
+
+            use climb_db::models::NewClimbDescription;
+            use climb_db::schema::climb_descriptions;
+
+            // Insert descriptions
+            let new_descriptions: Vec<NewClimbDescription> = descriptions.into_iter()
+                .filter_map(|kv| {
+                    type_ids_map.get(&kv.key).map(|type_id| NewClimbDescription {
+                        climb_id,
+                        climb_description_type_id: *type_id,
+                        value: kv.value,
+                    })
+                })
+            .collect();
+
+            diesel::insert_into(climb_descriptions::table)
+                .values(&new_descriptions)
+                .execute(conn)?;
+
+            diesel::result::QueryResult::Ok(Climb(result_climb))
+        }).ok()
     }
 
     async fn remove_climb<'a>(
