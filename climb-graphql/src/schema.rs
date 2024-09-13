@@ -63,6 +63,32 @@ impl Climb {
 
         Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
     }
+
+    async fn grades<'a>(&self, ctx: &Context<'a>) -> Option<Vec<KVPair>> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::{climb_grades, grade_types, grades};
+
+        // TODO This would be better if it was async
+        let data = climb_grades::table
+            .inner_join(
+                grades::table.on(
+                    climb_grades::grade_id.eq(grades::id)
+                    )
+                )
+            .inner_join(
+                grade_types::table.on(
+                    grades::grade_type_id.eq(grade_types::id)
+                )
+            )
+            .filter(climb_grades::climb_id.eq(&self.0.id))
+            .select((grade_types::name, grades::value))
+            .load::<(String, String)>(&mut conn)
+            .ok()?;
+
+        Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
+    }
 }
 
 pub struct Formation(models::Formation);
@@ -241,6 +267,10 @@ impl MutationRoot {
             desc = "Descriptions to associate with the climb"
         )]
         descriptions: Option<Vec<KVPair>>,
+        #[graphql(
+            desc = "Grades to associate with the climb"
+        )]
+        grades: Option<Vec<KVPair>>,
     ) -> Option<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -289,6 +319,48 @@ impl MutationRoot {
             diesel::insert_into(climb_descriptions::table)
                 .values(&new_descriptions)
                 .execute(conn)?;
+
+            let grades = grades.unwrap_or_default();
+
+            use climb_db::schema::grade_types;
+
+            // Map keys to grade_types::id
+            let grade_keys: Vec<String> = grades.iter().map(|kv| kv.key.clone()).collect();
+            let grade_type_ids_map: std::collections::HashMap<String, i32> = grade_types::table
+                .filter(grade_types::name.eq_any(grade_keys))
+                .select((grade_types::name, grade_types::id))
+                .load::<(String, i32)>(conn)?
+                .into_iter()
+                .collect::<std::collections::HashMap<_, _>>();
+
+            for kv in grades {
+                let grade_key = kv.key;
+                let grade_value = kv.value;
+
+                use climb_db::schema::grades;
+
+                if let Some(&grade_type_id) = grade_type_ids_map.get(&grade_key) {
+                    let grade_id = diesel::insert_into(grades::table)
+                        .values((
+                                grades::value.eq(grade_value.clone()),
+                                grades::grade_type_id.eq(grade_type_id),
+                        ))
+                        .on_conflict((grades::value, grades::grade_type_id))
+                        .do_update()
+                        .set(grades::value.eq(grade_value.clone()))
+                        .returning(grades::id)
+                        .get_result::<i32>(conn)?;
+
+                    use climb_db::schema::climb_grades;
+
+                    diesel::insert_into(climb_grades::table)
+                        .values((
+                                climb_grades::climb_id.eq(climb_id),
+                                climb_grades::grade_id.eq(grade_id),
+                        ))
+                        .execute(conn)?;
+                }
+            }
 
             diesel::result::QueryResult::Ok(Climb(result_climb))
         }).ok()
