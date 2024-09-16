@@ -1,4 +1,4 @@
-use async_graphql::{Context, Object, SimpleObject, InputObject};
+use async_graphql::{Context, FieldResult, InputObject, Object, SimpleObject};
 use r2d2::Pool;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
@@ -262,10 +262,6 @@ impl MutationRoot {
         #[graphql(
             desc = "Adds a climb"
         )]
-        names: Vec<String>,
-        #[graphql(
-            desc = "Descriptions to associate with the climb"
-        )]
         descriptions: Option<Vec<KVPair>>,
         #[graphql(
             desc = "Grades to associate with the climb"
@@ -281,7 +277,7 @@ impl MutationRoot {
             use climb_db::schema::climbs;
 
             // Insert the new climb
-            let new_climb = NewClimb { names: names.into_iter().map(Some).collect() };
+            let new_climb = NewClimb { names: vec!() };
             let result_climb = diesel::insert_into(climbs::table)
                 .values(&new_climb)
                 .returning(Climb::as_returning())
@@ -364,6 +360,76 @@ impl MutationRoot {
 
             diesel::result::QueryResult::Ok(Climb(result_climb))
         }).ok()
+    }
+
+    async fn add_climb_name<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Climb id to add name to"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Name which to add"
+        )]
+        name: String
+    ) -> FieldResult<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::climbs;
+        use diesel::dsl::sql;
+        use diesel::sql_types::{Array,Nullable,Text};
+
+        diesel::update(climbs::table)
+            .filter(climbs::id.eq(id))
+            .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
+                &format!("array_append(names, '{}')", name)
+            )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_climb = climbs::table
+            .find(id)
+            .first::<models::Climb>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Climb(updated_climb))
+    }
+
+    async fn remove_climb_name<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Climb id to remove name from"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Name which to remove"
+        )]
+        name: String
+    ) -> FieldResult<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::climbs;
+        use diesel::dsl::sql;
+        use diesel::sql_types::{Array,Nullable,Text};
+
+        diesel::update(climbs::table)
+            .filter(climbs::id.eq(id))
+            .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
+                &format!("array_remove(names, '{}')", name)
+            )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_climb = climbs::table
+            .find(id)
+            .first::<models::Climb>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Climb(updated_climb))
     }
 
     async fn remove_climb<'a>(
