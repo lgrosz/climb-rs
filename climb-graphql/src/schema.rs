@@ -139,6 +139,49 @@ impl QueryRoot {
         }
     }
 
+    async fn climbs<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Parent area id"
+        )]
+        area_id: Option<i32>,
+        #[graphql(
+            desc = "Parent formation id"
+        )]
+        formation_id: Option<i32>
+    ) -> FieldResult<Vec<Climb>> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::{climbs,climb_belongs_to};
+
+        let query = climbs::table
+            .left_join(climb_belongs_to::table.on(climb_belongs_to::climb_id.eq(climbs::id)))
+            .into_boxed();
+
+        let query = if let Some(id) = area_id {
+            query.filter(climb_belongs_to::area_id.eq(id))
+        } else {
+            query
+        };
+
+        let query = if let Some(id) = formation_id {
+            query.filter(climb_belongs_to::formation_id.eq(id))
+        } else {
+            query
+        };
+
+        let result = query
+            .select(climbs::all_columns)
+            .load::<models::Climb>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let climbs = result.into_iter().map(|climb| Climb(climb)).collect();
+
+        Ok(climbs)
+    }
+
     async fn climb<'a>(
         &self,
         ctx: &Context<'a>,
