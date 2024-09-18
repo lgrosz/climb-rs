@@ -7,8 +7,10 @@ use axum::{
     routing::get,
     Router,
 };
+use http::Method;
 use schema::MutationRoot;
 use tokio::net::TcpListener;
+use tower_http::cors::{Any, CorsLayer};
 use crate::schema::QueryRoot;
 
 use diesel::pg::PgConnection;
@@ -32,7 +34,13 @@ async fn main() {
         .data(pool.clone())
         .finish();
 
-    let app = Router::new().route("/", get(graphiql).post_service(GraphQL::new(schema)));
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST])
+        .allow_origin(Any);
+
+    let app = Router::new()
+        .route("/", get(graphiql).post_service(GraphQL::new(schema)))
+        .layer(cors);
 
     println!("GraphiQL IDE: http://localhost:8000");
 
