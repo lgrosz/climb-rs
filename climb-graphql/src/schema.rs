@@ -47,6 +47,20 @@ impl Area {
 
         names.into_iter().filter_map(|name| name).collect()
     }
+
+    async fn super_area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::area_belongs_to;
+
+        let data = area_belongs_to::table
+            .filter(area_belongs_to::area_id.eq(&self.0))
+            .select(area_belongs_to::super_area_id)
+            .first::<i32>(&mut conn)
+            .ok()?;
+
+        Some(Area(data))
     }
 }
 
@@ -444,6 +458,70 @@ impl MutationRoot {
         Ok(Area(updated_area))
     }
 
+    async fn set_super_area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Area id to set 'super area' of"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Super area id"
+        )]
+        super_area_id: i32
+    ) -> FieldResult<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::area_belongs_to;
+        use diesel::upsert::excluded;
+
+        let new_area_belongs_to = models::NewAreaBelongsTo {
+            area_id: id,
+            super_area_id
+        };
+
+        diesel::insert_into(area_belongs_to::table)
+            .values(new_area_belongs_to)
+            .on_conflict(area_belongs_to::area_id)
+            .do_update()
+            .set(area_belongs_to::super_area_id.eq(excluded(area_belongs_to::super_area_id)))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        use climb_db::schema::areas;
+
+        let area_id = areas::table
+            .find(id)
+            .select(areas::id)
+            .first(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Area(area_id))
+    }
+    async fn clear_super_area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Area id to clear 'super area' of"
+        )]
+        id: i32,
+    ) -> FieldResult<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::area_belongs_to;
+
+        let area_id = diesel::delete(
+            area_belongs_to::table
+                .filter(area_belongs_to::area_id.eq(id)))
+            .returning(area_belongs_to::area_id)
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Area(area_id))
+    }
+
     async fn remove_area<'a>(
         &self,
         ctx: &Context<'a>,
@@ -603,6 +681,7 @@ impl MutationRoot {
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
+        // TODO perf: use returning to avoid a second query
         let updated_climb = climbs::table
             .find(id)
             .first::<models::Climb>(&mut conn)
