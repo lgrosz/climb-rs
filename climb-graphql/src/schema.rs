@@ -246,10 +246,6 @@ impl MutationRoot {
     async fn add_area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Adds an area"
-        )]
-        names: Vec<String>,
     ) -> Option<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -262,7 +258,7 @@ impl MutationRoot {
         use climb_db::models::{ NewArea, Area };
         use climb_db::schema::areas;
 
-        let new_area = NewArea { names: names.into_iter().map(Some).collect() };
+        let new_area = NewArea { names: vec!() };
         let result_area = diesel::insert_into(areas::table)
             .values(&new_area)
             .returning(Area::as_returning())
@@ -270,6 +266,76 @@ impl MutationRoot {
             .expect("Error on saving area");
 
         Some(Area(result_area))
+    }
+
+    async fn add_area_name<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Area id to add name to"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Name which to add"
+        )]
+        name: String
+    ) -> FieldResult<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::areas;
+        use diesel::dsl::sql;
+        use diesel::sql_types::{Array,Nullable,Text};
+
+        diesel::update(areas::table)
+            .filter(areas::id.eq(id))
+            .set(areas::names.eq(sql::<Array<Nullable<Text>>>(
+                &format!("array_append(names, '{}')", name)
+            )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_area = areas::table
+            .find(id)
+            .first::<models::Area>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Area(updated_area))
+    }
+
+    async fn remove_area_name<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Area id to remove name from"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Name which to remove"
+        )]
+        name: String
+    ) -> FieldResult<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::areas;
+        use diesel::dsl::sql;
+        use diesel::sql_types::{Array,Nullable,Text};
+
+        diesel::update(areas::table)
+            .filter(areas::id.eq(id))
+            .set(areas::names.eq(sql::<Array<Nullable<Text>>>(
+                &format!("array_remove(names, '{}')", name)
+            )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_area = areas::table
+            .find(id)
+            .first::<models::Area>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Area(updated_area))
     }
 
     async fn remove_area<'a>(
