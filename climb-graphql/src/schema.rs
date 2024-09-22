@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
 use climb_db::models;
 
-pub struct Area(models::Area);
+pub struct Area(i32);
 
 #[derive(SimpleObject, InputObject)]
 #[graphql(input_name = "KVPairInput")]
@@ -24,14 +24,29 @@ pub struct Coordinate {
 #[Object]
 impl Area {
     async fn id(&self) -> &i32 {
-        &self.0.id
+        &self.0
     }
 
-    async fn names(&self) -> Vec<String> {
-        self.0.names
-            .iter()
-            .filter_map(|name| name.clone())
-            .collect()
+    async fn names<'a>(&self, ctx: &Context<'a>) -> Vec<String> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::areas;
+
+        let names = match areas::table
+            .filter(areas::id.eq(&self.0))
+            .select(areas::names)
+            .first::<Vec<Option<String>>>(&mut conn)
+        {
+            Ok(names) => names,
+            Err(_) => return Vec::new(),
+        };
+
+        names.into_iter().filter_map(|name| name).collect()
+    }
     }
 }
 
@@ -149,11 +164,11 @@ impl QueryRoot {
         };
 
         let result = query
-            .select(areas::all_columns)
-            .load::<models::Area>(&mut conn)
+            .select(areas::id)
+            .load(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let areas = result.into_iter().map(|area| Area(area)).collect();
+        let areas = result.into_iter().map(|id| Area(id)).collect();
 
         Ok(areas)
     }
@@ -174,16 +189,15 @@ impl QueryRoot {
             return None;
         }
 
-        use climb_db::schema::areas::dsl::areas;
+        use climb_db::schema::areas;
 
-        let area = areas
+        let area_id = areas::table
             .find(id)
-            .first::<models::Area>(&mut conn.unwrap());
+            .select(areas::id)
+            .first(&mut conn.unwrap())
+            .ok()?;
 
-        match area {
-            Ok(_) => Some(Area(area.unwrap())),
-            Err(_) => None,
-        }
+        Some(Area(area_id))
     }
 
     async fn climbs<'a>(
@@ -345,17 +359,17 @@ impl MutationRoot {
             return None;
         }
 
-        use climb_db::models::{ NewArea, Area };
+        use climb_db::models::{ NewArea };
         use climb_db::schema::areas;
 
         let new_area = NewArea { names: vec!() };
-        let result_area = diesel::insert_into(areas::table)
+        let area_id = diesel::insert_into(areas::table)
             .values(&new_area)
-            .returning(Area::as_returning())
-            .get_result(&mut conn.unwrap())
+            .returning(areas::id)
+            .get_result::<i32>(&mut conn.unwrap())
             .expect("Error on saving area");
 
-        Some(Area(result_area))
+        Some(Area(area_id))
     }
 
     async fn add_area_name<'a>(
@@ -385,12 +399,13 @@ impl MutationRoot {
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let updated_area = areas::table
+        let area_id = areas::table
             .find(id)
-            .first::<models::Area>(&mut conn)
+            .select(areas::id)
+            .first(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Area(updated_area))
+        Ok(Area(area_id))
     }
 
     async fn remove_area_name<'a>(
@@ -422,7 +437,8 @@ impl MutationRoot {
 
         let updated_area = areas::table
             .find(id)
-            .first::<models::Area>(&mut conn)
+            .select(areas::id)
+            .first(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Area(updated_area))
@@ -444,15 +460,14 @@ impl MutationRoot {
             return None;
         }
 
-        use climb_db::models::Area;
-        use climb_db::schema::areas::dsl::{ areas, id as area_id };
+        use climb_db::schema::areas;
 
-        let area = diesel::delete(areas.filter(area_id.eq(id)))
-            .returning(Area::as_returning())
+        let area_id = diesel::delete(areas::table.filter(areas::id.eq(id)))
+            .returning(areas::id)
             .get_result(&mut conn.unwrap())
             .expect("Error removing area");
 
-        Some(Area(area))
+        Some(Area(area_id))
     }
 
     async fn add_climb<'a>(
