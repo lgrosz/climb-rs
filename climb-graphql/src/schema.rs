@@ -14,6 +14,13 @@ pub struct KVPair {
     pub value: String,
 }
 
+#[derive(SimpleObject, InputObject)]
+#[graphql(input_name = "CoordinateInput")]
+pub struct Coordinate {
+    pub latitude: f64,
+    pub longitude: f64,
+}
+
 #[Object]
 impl Area {
     async fn id(&self) -> &i32 {
@@ -104,6 +111,13 @@ impl Formation {
             .iter()
             .filter_map(|name| name.clone())
             .collect()
+    }
+
+    async fn location(&self) -> Option<Coordinate> {
+        self.0.location.map(|point| Coordinate {
+            latitude: point.x,
+            longitude: point.y,
+        })
     }
 }
 
@@ -728,6 +742,70 @@ impl MutationRoot {
             .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_remove(names, '{}')", name)
             )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_formation = formations::table
+            .find(id)
+            .first::<models::Formation>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(updated_formation))
+    }
+
+    async fn set_formation_location<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to set location of"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Location of the formation"
+        )]
+        location: Coordinate
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formations;
+        use postgis_diesel::types::Point;
+
+        diesel::update(formations::table)
+            .filter(formations::id.eq(id))
+            .set(formations::location.eq(Point {
+                x: location.latitude,
+                y: location.longitude,
+                srid: None,
+            }))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_formation = formations::table
+            .find(id)
+            .first::<models::Formation>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(updated_formation))
+    }
+
+    async fn clear_formation_location<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to set location of"
+        )]
+        id: i32,
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formations;
+        use postgis_diesel::types::Point;
+
+        diesel::update(formations::table)
+            .filter(formations::id.eq(id))
+            .set(formations::location.eq(None::<Point>))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
