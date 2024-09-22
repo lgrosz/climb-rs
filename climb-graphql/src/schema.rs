@@ -111,6 +111,39 @@ pub struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
+    async fn areas<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Parent area id"
+        )]
+        area_id: Option<i32>,
+    ) -> FieldResult<Vec<Area>> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::{areas,area_belongs_to};
+
+        let query = areas::table
+            .left_join(area_belongs_to::table.on(area_belongs_to::area_id.eq(areas::id)))
+            .into_boxed();
+
+        let query = if let Some(id) = area_id {
+            query.filter(area_belongs_to::area_id.eq(id))
+        } else {
+            query
+        };
+
+        let result = query
+            .select(areas::all_columns)
+            .load::<models::Area>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let areas = result.into_iter().map(|area| Area(area)).collect();
+
+        Ok(areas)
+    }
+
     async fn area<'a>(
         &self,
         ctx: &Context<'a>,
