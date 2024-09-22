@@ -604,10 +604,6 @@ impl MutationRoot {
     async fn add_formation<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Adds a formation"
-        )]
-        names: Vec<String>,
     ) -> Option<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -620,10 +616,7 @@ impl MutationRoot {
         use climb_db::models::{ NewFormation, Formation };
         use climb_db::schema::formations;
 
-        let new_formation = NewFormation {
-            names: names.into_iter().map(Some).collect(),
-            ..Default::default()
-        };
+        let new_formation = NewFormation { ..Default::default() };
         let result_formation = diesel::insert_into(formations::table)
             .values(&new_formation)
             .returning(Formation::as_returning())
@@ -631,6 +624,76 @@ impl MutationRoot {
             .expect("Error on saving formation");
 
         Some(Formation(result_formation))
+    }
+
+    async fn add_formation_name<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to add name to"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Name which to add"
+        )]
+        name: String
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formations;
+        use diesel::dsl::sql;
+        use diesel::sql_types::{Array,Nullable,Text};
+
+        diesel::update(formations::table)
+            .filter(formations::id.eq(id))
+            .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
+                &format!("array_append(names, '{}')", name)
+            )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_formation = formations::table
+            .find(id)
+            .first::<models::Formation>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(updated_formation))
+    }
+
+    async fn remove_formation_name<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to remove name from"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Name which to remove"
+        )]
+        name: String
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formations;
+        use diesel::dsl::sql;
+        use diesel::sql_types::{Array,Nullable,Text};
+
+        diesel::update(formations::table)
+            .filter(formations::id.eq(id))
+            .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
+                &format!("array_remove(names, '{}')", name)
+            )))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let updated_formation = formations::table
+            .find(id)
+            .first::<models::Formation>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(updated_formation))
     }
 
     async fn remove_formation<'a>(
