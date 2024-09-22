@@ -243,6 +243,49 @@ impl QueryRoot {
         }
     }
 
+    async fn formations<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Parent area id"
+        )]
+        area_id: Option<i32>,
+        #[graphql(
+            desc = "Parent formation id"
+        )]
+        formation_id: Option<i32>
+    ) -> FieldResult<Vec<Formation>> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::{formations,formation_belongs_to};
+
+        let query = formations::table
+            .left_join(formation_belongs_to::table.on(formation_belongs_to::formation_id.eq(formations::id)))
+            .into_boxed();
+
+        let query = if let Some(id) = area_id {
+            query.filter(formation_belongs_to::area_id.eq(id))
+        } else {
+            query
+        };
+
+        let query = if let Some(id) = formation_id {
+            query.filter(formation_belongs_to::formation_id.eq(id))
+        } else {
+            query
+        };
+
+        let result = query
+            .select(formations::all_columns)
+            .load::<models::Formation>(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        let formations = result.into_iter().map(|formation| Formation(formation)).collect();
+
+        Ok(formations)
+    }
+
     async fn formation<'a>(
         &self,
         ctx: &Context<'a>,
