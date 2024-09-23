@@ -441,21 +441,16 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        diesel::update(areas::table)
+        let area_id = diesel::update(areas::table)
             .filter(areas::id.eq(id))
             .set(areas::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_remove(names, '{}')", name)
             )))
-            .execute(&mut conn)
+            .returning(areas::id)
+            .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let updated_area = areas::table
-            .find(id)
-            .select(areas::id)
-            .first(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        Ok(Area(updated_area))
+        Ok(Area(area_id))
     }
 
     async fn set_super_area<'a>(
@@ -673,18 +668,13 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        diesel::update(climbs::table)
+        let updated_climb = diesel::update(climbs::table)
             .filter(climbs::id.eq(id))
             .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_append(names, '{}')", name)
             )))
-            .execute(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        // TODO perf: use returning to avoid a second query
-        let updated_climb = climbs::table
-            .find(id)
-            .first::<models::Climb>(&mut conn)
+            .returning(models::Climb::as_returning())
+            .get_result::<models::Climb>(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Climb(updated_climb))
@@ -709,17 +699,13 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        diesel::update(climbs::table)
+        let updated_climb = diesel::update(climbs::table)
             .filter(climbs::id.eq(id))
             .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_remove(names, '{}')", name)
             )))
-            .execute(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        let updated_climb = climbs::table
-            .find(id)
-            .first::<models::Climb>(&mut conn)
+            .returning(models::Climb::as_returning())
+            .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Climb(updated_climb))
@@ -796,17 +782,13 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        diesel::update(formations::table)
+        let updated_formation = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_append(names, '{}')", name)
             )))
-            .execute(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        let updated_formation = formations::table
-            .find(id)
-            .first::<models::Formation>(&mut conn)
+            .returning(models::Formation::as_returning())
+            .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Formation(updated_formation))
@@ -831,17 +813,13 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        diesel::update(formations::table)
+        let updated_formation = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_remove(names, '{}')", name)
             )))
-            .execute(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        let updated_formation = formations::table
-            .find(id)
-            .first::<models::Formation>(&mut conn)
+            .returning(models::Formation::as_returning())
+            .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Formation(updated_formation))
@@ -865,19 +843,15 @@ impl MutationRoot {
         use climb_db::schema::formations;
         use postgis_diesel::types::Point;
 
-        diesel::update(formations::table)
+        let updated_formation = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::location.eq(Point {
                 x: location.latitude,
                 y: location.longitude,
                 srid: None,
             }))
-            .execute(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        let updated_formation = formations::table
-            .find(id)
-            .first::<models::Formation>(&mut conn)
+            .returning(models::Formation::as_returning())
+            .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Formation(updated_formation))
@@ -897,15 +871,11 @@ impl MutationRoot {
         use climb_db::schema::formations;
         use postgis_diesel::types::Point;
 
-        diesel::update(formations::table)
+        let updated_formation = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::location.eq(None::<Point>))
-            .execute(&mut conn)
-            .map_err(|e| e.to_string())?;
-
-        let updated_formation = formations::table
-            .find(id)
-            .first::<models::Formation>(&mut conn)
+            .returning(models::Formation::as_returning())
+            .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
         Ok(Formation(updated_formation))
