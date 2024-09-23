@@ -98,6 +98,17 @@ diesel::table! {
     use postgis_diesel::sql_types::*;
     use diesel::sql_types::*;
 
+    climb_link_ups (root_id, link_id) {
+        root_id -> Int4,
+        link_id -> Int4,
+        link_order -> Int4,
+    }
+}
+
+diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climb_variations (root_id, variation_id) {
         root_id -> Int4,
         variation_id -> Int4,
@@ -211,6 +222,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     climb_description_types,
     climb_descriptions,
     climb_grades,
+    climb_link_ups,
     climb_variations,
     climbers,
     climbs,
