@@ -194,24 +194,19 @@ impl QueryRoot {
             desc = "Returns the area with the given id"
         )]
         id: i32,
-    ) -> Option<Area> {
+    ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
-
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::areas;
 
         let area_id = areas::table
             .find(id)
             .select(areas::id)
-            .first(&mut conn.unwrap())
-            .ok()?;
+            .first(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        Some(Area(area_id))
+        Ok(Area(area_id))
     }
 
     async fn climbs<'a>(
@@ -264,25 +259,18 @@ impl QueryRoot {
             desc = "Returns climb with given id"
         )]
         id: i32,
-    ) -> Option<Climb> {
+    ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        use climb_db::schema::climbs;
 
-        use climb_db::schema::climbs::dsl::climbs;
-
-        let climb = climbs
+        let climb = climbs::table
             .find(id)
-            .first::<models::Climb>(&mut conn.unwrap());
+            .first::<models::Climb>(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        match climb {
-            Ok(_) => Some(Climb(climb.unwrap())),
-            Err(_) => None,
-        }
+        Ok(Climb(climb))
     }
 
     async fn formations<'a>(
@@ -335,25 +323,18 @@ impl QueryRoot {
             desc = "Returns the formation with given id"
         )]
         id: i32,
-    ) -> Option<Formation> {
+    ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        use climb_db::schema::formations;
 
-        use climb_db::schema::formations::dsl::formations;
-
-        let formation = formations
+        let formation = formations::table
             .find(id)
-            .first::<models::Formation>(&mut conn.unwrap());
+            .first::<models::Formation>(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        match formation {
-            Ok(_) => Some(Formation(formation.unwrap())),
-            Err(_) => None,
-        }
+        Ok(Formation(formation))
     }
 }
 
@@ -364,26 +345,22 @@ impl MutationRoot {
     async fn add_area<'a>(
         &self,
         ctx: &Context<'a>,
-    ) -> Option<Area> {
+    ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::models::{ NewArea };
+        use climb_db::models::NewArea;
         use climb_db::schema::areas;
 
         let new_area = NewArea { names: vec!() };
         let area_id = diesel::insert_into(areas::table)
             .values(&new_area)
             .returning(areas::id)
-            .get_result::<i32>(&mut conn.unwrap())
-            .expect("Error on saving area");
+            .get_result::<i32>(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        Some(Area(area_id))
+        Ok(Area(area_id))
     }
 
     async fn add_area_name<'a>(
@@ -524,23 +501,18 @@ impl MutationRoot {
             desc = "Removes area with given id"
         )]
         id: i32,
-    ) -> Option<Area> {
+    ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
-
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::areas;
 
         let area_id = diesel::delete(areas::table.filter(areas::id.eq(id)))
             .returning(areas::id)
-            .get_result(&mut conn.unwrap())
-            .expect("Error removing area");
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        Some(Area(area_id))
+        Ok(Area(area_id))
     }
 
     async fn add_climb<'a>(
@@ -554,12 +526,12 @@ impl MutationRoot {
             desc = "Grades to associate with the climb"
         )]
         grades: Option<Vec<KVPair>>,
-    ) -> Option<Climb> {
+    ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
         // Start a new transaction
-        let mut conn = pool.get().ok()?;
-        conn.transaction(|conn| {
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+        Ok(conn.transaction(|conn| {
             use climb_db::models::{NewClimb, Climb};
             use climb_db::schema::climbs;
 
@@ -646,7 +618,7 @@ impl MutationRoot {
             }
 
             diesel::result::QueryResult::Ok(Climb(result_climb))
-        }).ok()
+        }).map_err(|e| e.to_string())?)
     }
 
     async fn add_climb_name<'a>(
@@ -718,37 +690,27 @@ impl MutationRoot {
             desc = "Removes climb with given id"
         )]
         id: i32,
-    ) -> Option<Climb> {
+    ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
-
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::models::Climb;
-        use climb_db::schema::climbs::dsl::{ climbs, id as climb_id };
+        use climb_db::schema::climbs;
 
-        let climb = diesel::delete(climbs.filter(climb_id.eq(id)))
+        let climb = diesel::delete(climbs::table.filter(climbs::id.eq(id)))
             .returning(Climb::as_returning())
-            .get_result(&mut conn.unwrap())
-            .expect("Error removing climb");
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        Some(Climb(climb))
+        Ok(Climb(climb))
     }
 
     async fn add_formation<'a>(
         &self,
         ctx: &Context<'a>,
-    ) -> Option<Formation> {
+    ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
-
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::models::{ NewFormation, Formation };
         use climb_db::schema::formations;
@@ -757,10 +719,10 @@ impl MutationRoot {
         let result_formation = diesel::insert_into(formations::table)
             .values(&new_formation)
             .returning(Formation::as_returning())
-            .get_result(&mut conn.unwrap())
-            .expect("Error on saving formation");
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        Some(Formation(result_formation))
+        Ok(Formation(result_formation))
     }
 
     async fn add_formation_name<'a>(
@@ -888,23 +850,18 @@ impl MutationRoot {
             desc = "Removes formation with given id"
         )]
         id: i32,
-    ) -> Option<Formation> {
+    ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
-
-        let conn = pool.get();
-        if conn.is_err() {
-            // How can I propogate errors?
-            return None;
-        }
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::models::Formation;
-        use climb_db::schema::formations::dsl::{ formations, id as formation_id };
+        use climb_db::schema::formations;
 
-        let formation = diesel::delete(formations.filter(formation_id.eq(id)))
+        let formation = diesel::delete(formations::table.filter(formations::id.eq(id)))
             .returning(Formation::as_returning())
-            .get_result(&mut conn.unwrap())
-            .expect("Error removing formation");
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
 
-        Some(Formation(formation))
+        Ok(Formation(formation))
     }
 }
