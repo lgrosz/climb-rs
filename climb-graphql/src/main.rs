@@ -16,7 +16,7 @@ use diesel::r2d2::{self, ConnectionManager};
 use std::env;
 
 async fn graphiql() -> impl IntoResponse {
-    response::Html(GraphiQLSource::build().endpoint("/").finish())
+    response::Html(GraphiQLSource::build().endpoint("/graphql").finish())
 }
 
 #[tokio::main]
@@ -32,9 +32,9 @@ async fn main() {
         .data(pool.clone())
         .finish();
 
-    let app = Router::new().route("/", get(graphiql).post_service(GraphQL::new(schema)));
+    let app = Router::new().route("/graphql", get(graphiql).post_service(GraphQL::new(schema)));
 
-    println!("GraphiQL IDE: http://localhost:8000");
+    println!("GraphiQL IDE: http://localhost:8000/graphql");
 
     axum::serve(TcpListener::bind("127.0.0.1:8000").await.unwrap(), app)
         .await
