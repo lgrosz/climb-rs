@@ -219,6 +219,57 @@ impl Formation {
 
         location.map(|loc| Coordinate { latitude: loc.x, longitude: loc.y })
     }
+
+    async fn area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::formation_belongs_to;
+
+        let data = formation_belongs_to::table
+            .filter(formation_belongs_to::formation_id.eq(&self.0))
+            .select(formation_belongs_to::area_id)
+            .first::<Option<i32>>(&mut conn)
+            .ok()?;
+
+        data.map(|id| Area(id))
+    }
+
+    async fn super_formation<'a>(&self, ctx: &Context<'a>) -> Option<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::formation_belongs_to;
+
+        let data = formation_belongs_to::table
+            .filter(formation_belongs_to::formation_id.eq(&self.0))
+            .select(formation_belongs_to::super_formation_id)
+            .first::<Option<i32>>(&mut conn)
+            .ok()?;
+
+        data.map(|id| Formation(id))
+    }
+
+    async fn sub_formations<'a>(&self, ctx: &Context<'a>) -> Vec<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::formation_belongs_to;
+
+        let data = match formation_belongs_to::table
+            .filter(formation_belongs_to::super_formation_id.eq(&self.0))
+            .select(formation_belongs_to::formation_id)
+            .load::<i32>(&mut conn)
+        {
+            Ok(ids) => ids,
+            Err(_) => Vec::new(),
+        };
+
+        data.into_iter().map(|id| Formation(id)).collect()
+    }
 }
 
 pub struct QueryRoot;
