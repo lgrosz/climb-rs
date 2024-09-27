@@ -345,22 +345,36 @@ impl MutationRoot {
     async fn add_area<'a>(
         &self,
         ctx: &Context<'a>,
+        names: Option<Vec<String>>,
+        super_area_id: Option<i32>,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::models::NewArea;
-        use climb_db::schema::areas;
+        conn.transaction(|conn| {
+            use climb_db::models::NewArea;
+            use climb_db::schema::areas;
 
-        let new_area = NewArea { names: vec!() };
-        let area_id = diesel::insert_into(areas::table)
-            .values(&new_area)
-            .returning(areas::id)
-            .get_result::<i32>(&mut conn)
-            .map_err(|e| e.to_string())?;
+            let new_area = NewArea { names: vec!() };
+            let area_id = diesel::insert_into(areas::table)
+                .values(&new_area)
+                .returning(areas::id)
+                .get_result::<i32>(conn)
+                .map_err(|e| e.to_string())?;
 
-        Ok(Area(area_id))
+            if let Some(names) = names {
+                use crate::queries::set_area_names;
+                set_area_names(conn, area_id, names)?;
+            }
+
+            if let Some(super_area_id) = super_area_id {
+                use crate::queries::set_area_super_area_id;
+                set_area_super_area_id(conn, area_id, super_area_id)?;
+            }
+
+            Ok(Area(area_id))
+        })
     }
 
     async fn add_area_name<'a>(

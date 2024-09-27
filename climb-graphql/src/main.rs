@@ -1,4 +1,5 @@
 mod schema;
+mod queries;
 
 use async_graphql::{http::GraphiQLSource, EmptySubscription, Schema};
 use async_graphql_axum::GraphQL;
