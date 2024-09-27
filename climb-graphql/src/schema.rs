@@ -976,6 +976,130 @@ impl MutationRoot {
         Ok(Formation(id))
     }
 
+    async fn set_formation_area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to area of"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Area id"
+        )]
+        area_id: i32,
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formation_belongs_to;
+        use diesel::upsert::excluded;
+
+        let new_formation_belongs_to = models::NewFormationBelongsTo {
+            formation_id: id,
+            area_id: Some(area_id),
+            super_formation_id: None,
+        };
+
+        diesel::insert_into(formation_belongs_to::table)
+            .values(new_formation_belongs_to)
+            .on_conflict(formation_belongs_to::formation_id)
+            .do_update()
+            .set((
+                formation_belongs_to::area_id.eq(excluded(formation_belongs_to::area_id)),
+                formation_belongs_to::super_formation_id.eq(None::<i32>),
+            ))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(id))
+    }
+
+    async fn set_formation_super_formation<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to super-formation of"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Super formation id"
+        )]
+        super_formation_id: i32,
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formation_belongs_to;
+        use diesel::upsert::excluded;
+
+        let new_formation_belongs_to = models::NewFormationBelongsTo {
+            formation_id: id,
+            area_id: None,
+            super_formation_id: Some(super_formation_id),
+        };
+
+        diesel::insert_into(formation_belongs_to::table)
+            .values(new_formation_belongs_to)
+            .on_conflict(formation_belongs_to::formation_id)
+            .do_update()
+            .set((
+                formation_belongs_to::area_id.eq(excluded(formation_belongs_to::area_id)),
+                formation_belongs_to::super_formation_id.eq(None::<i32>),
+            ))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(id))
+    }
+
+    async fn clear_formation_area<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to area of"
+        )]
+        id: i32,
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formation_belongs_to;
+
+        let formation_id = diesel::delete(
+            formation_belongs_to::table
+                .filter(formation_belongs_to::formation_id.eq(id)))
+            .returning(formation_belongs_to::formation_id)
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(formation_id))
+    }
+
+    // TODO This same thing as `clear_formation_area`. Is there a common name I can use to avoid
+    // this duplication? Or from an outside view, does it make sense to keep them separate?
+    async fn clear_formation_super_formation<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Formation id to super-formation of"
+        )]
+        id: i32,
+    ) -> FieldResult<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::formation_belongs_to;
+
+        let formation_id = diesel::delete(
+            formation_belongs_to::table
+                .filter(formation_belongs_to::formation_id.eq(id)))
+            .returning(formation_belongs_to::formation_id)
+            .get_result(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Formation(formation_id))
+    }
+
     async fn remove_formation<'a>(
         &self,
         ctx: &Context<'a>,
