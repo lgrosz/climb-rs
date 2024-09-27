@@ -148,26 +148,55 @@ impl Climb {
     }
 }
 
-pub struct Formation(models::Formation);
+pub struct Formation(i32);
 
 #[Object]
 impl Formation {
     async fn id(&self) -> &i32 {
-        &self.0.id
+        &self.0
     }
 
-    async fn names(&self) -> Vec<String> {
-        self.0.names
-            .iter()
-            .filter_map(|name| name.clone())
-            .collect()
+    async fn names<'a>(&self, ctx: &Context<'a>) -> Vec<String> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::formations;
+
+        let names = match formations::table
+            .filter(formations::id.eq(&self.0))
+            .select(formations::names)
+            .first::<Vec<Option<String>>>(&mut conn)
+        {
+            Ok(names) => names,
+            Err(_) => return Vec::new(),
+        };
+
+        names.into_iter().filter_map(|name| name).collect()
     }
 
-    async fn location(&self) -> Option<Coordinate> {
-        self.0.location.map(|point| Coordinate {
-            latitude: point.x,
-            longitude: point.y,
-        })
+    async fn location<'a>(&self, ctx: &Context<'a>) -> Option<Coordinate> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return None,
+        };
+
+        use climb_db::schema::formations;
+        use postgis_diesel::types::Point;
+
+        let location = match formations::table
+            .filter(formations::id.eq(&self.0))
+            .select(formations::location)
+            .first::<Option<Point>>(&mut conn)
+        {
+            Ok(location) => location,
+            Err(_) => return None,
+        };
+
+        location.map(|loc| Coordinate { latitude: loc.x, longitude: loc.y })
     }
 }
 
@@ -328,11 +357,11 @@ impl QueryRoot {
         };
 
         let result = query
-            .select(formations::all_columns)
-            .load::<models::Formation>(&mut conn)
+            .select(formations::id)
+            .load::<i32>(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let formations = result.into_iter().map(|formation| Formation(formation)).collect();
+        let formations = result.into_iter().map(|id| Formation(id)).collect();
 
         Ok(formations)
     }
@@ -350,12 +379,13 @@ impl QueryRoot {
 
         use climb_db::schema::formations;
 
-        let formation = formations::table
+        let formation_id = formations::table
             .find(id)
-            .first::<models::Formation>(&mut conn)
+            .select(formations::id)
+            .first::<i32>(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(formation))
+        Ok(Formation(formation_id))
     }
 }
 
@@ -747,17 +777,17 @@ impl MutationRoot {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::models::{ NewFormation, Formation };
+        use climb_db::models::NewFormation;
         use climb_db::schema::formations;
 
         let new_formation = NewFormation { ..Default::default() };
-        let result_formation = diesel::insert_into(formations::table)
+        let id = diesel::insert_into(formations::table)
             .values(&new_formation)
-            .returning(Formation::as_returning())
+            .returning(formations::id)
             .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(result_formation))
+        Ok(Formation(id))
     }
 
     async fn add_formation_name<'a>(
@@ -779,16 +809,15 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        let updated_formation = diesel::update(formations::table)
+        let _ = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_append(names, '{}')", name)
             )))
-            .returning(models::Formation::as_returning())
-            .get_result(&mut conn)
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(updated_formation))
+        Ok(Formation(id))
     }
 
     async fn remove_formation_name<'a>(
@@ -810,16 +839,15 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        let updated_formation = diesel::update(formations::table)
+        let _ = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_remove(names, '{}')", name)
             )))
-            .returning(models::Formation::as_returning())
-            .get_result(&mut conn)
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(updated_formation))
+        Ok(Formation(id))
     }
 
     async fn set_formation_location<'a>(
@@ -840,18 +868,17 @@ impl MutationRoot {
         use climb_db::schema::formations;
         use postgis_diesel::types::Point;
 
-        let updated_formation = diesel::update(formations::table)
+        let _ = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::location.eq(Point {
                 x: location.latitude,
                 y: location.longitude,
                 srid: None,
             }))
-            .returning(models::Formation::as_returning())
-            .get_result(&mut conn)
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(updated_formation))
+        Ok(Formation(id))
     }
 
     async fn clear_formation_location<'a>(
@@ -868,14 +895,13 @@ impl MutationRoot {
         use climb_db::schema::formations;
         use postgis_diesel::types::Point;
 
-        let updated_formation = diesel::update(formations::table)
+        let _ = diesel::update(formations::table)
             .filter(formations::id.eq(id))
             .set(formations::location.eq(None::<Point>))
-            .returning(models::Formation::as_returning())
-            .get_result(&mut conn)
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(updated_formation))
+        Ok(Formation(id))
     }
 
     async fn remove_formation<'a>(
@@ -889,14 +915,13 @@ impl MutationRoot {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::models::Formation;
         use climb_db::schema::formations;
 
-        let formation = diesel::delete(formations::table.filter(formations::id.eq(id)))
-            .returning(Formation::as_returning())
+        let formation_id = diesel::delete(formations::table.filter(formations::id.eq(id)))
+            .returning(formations::id)
             .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Formation(formation))
+        Ok(Formation(formation_id))
     }
 }
