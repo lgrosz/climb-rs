@@ -62,6 +62,27 @@ impl Area {
 
         Some(Area(data))
     }
+
+    async fn sub_areas<'a>(&self, ctx: &Context<'a>) -> Vec<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::area_belongs_to;
+
+        let data = match area_belongs_to::table
+            .filter(area_belongs_to::super_area_id.eq(&self.0))
+            .select(area_belongs_to::area_id)
+            .load::<i32>(&mut conn)
+        {
+            Ok(ids) => ids,
+            Err(_) => Vec::new(),
+        };
+
+        data.into_iter().map(|id| Area(id)).collect()
+    }
 }
 
 pub struct Climb(models::Climb);
