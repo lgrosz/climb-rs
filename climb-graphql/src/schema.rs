@@ -83,6 +83,27 @@ impl Area {
 
         data.into_iter().map(|id| Area(id)).collect()
     }
+
+    async fn formations<'a>(&self, ctx: &Context<'a>) -> Vec<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::formation_belongs_to;
+
+        let data = match formation_belongs_to::table
+            .filter(formation_belongs_to::area_id.eq(&self.0))
+            .select(formation_belongs_to::formation_id)
+            .load::<i32>(&mut conn)
+        {
+            Ok(ids) => ids,
+            Err(_) => Vec::new(),
+        };
+
+        data.into_iter().map(|id| Formation(id)).collect()
+    }
 }
 
 pub struct Climb(models::Climb);
