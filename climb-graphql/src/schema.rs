@@ -845,21 +845,43 @@ impl MutationRoot {
     async fn add_formation<'a>(
         &self,
         ctx: &Context<'a>,
+        names: Option<Vec<String>>,
+        area_id: Option<i32>,
+        super_formation_id: Option<i32>,
+        location: Option<Coordinate>,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::models::NewFormation;
-        use climb_db::schema::formations;
+        conn.transaction(|conn| {
+            use climb_db::models::NewFormation;
+            use climb_db::schema::formations;
+            use postgis_diesel::types::Point;
 
-        let new_formation = NewFormation { ..Default::default() };
-        let id = diesel::insert_into(formations::table)
-            .values(&new_formation)
-            .returning(formations::id)
-            .get_result(&mut conn)
-            .map_err(|e| e.to_string())?;
+            let new_formation = NewFormation {
+                names: names.map_or_else(|| vec![], |vec| vec.into_iter().map(Some).collect()),
+                location: location.map(|loc| Point { x: loc.latitude, y: loc.longitude, srid: None }),
+            };
 
-        Ok(Formation(id))
+            let formation_id = diesel::insert_into(formations::table)
+                .values(&new_formation)
+                .returning(formations::id)
+                .get_result::<i32>(conn)
+                .map_err(|e| e.to_string())?;
+
+            if let Some(area_id) = area_id {
+                use crate::queries::set_formation_area_id;
+                set_formation_area_id(conn, formation_id, area_id)?;
+            }
+
+            if let Some(super_formation_id) = super_formation_id {
+                use crate::queries::set_formation_super_formation_id;
+                set_formation_super_formation_id(conn, formation_id, super_formation_id)?;
+            }
+
+            Ok(Formation(formation_id))
+        })
     }
 
     async fn add_formation_name<'a>(

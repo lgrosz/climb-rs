@@ -31,3 +31,47 @@ pub fn set_area_super_area_id(conn: &mut PgConnection, id: i32, super_area_id: i
 
     Ok(())
 }
+
+pub fn set_formation_area_id(conn: &mut PgConnection, id: i32, area_id: i32) -> Result<(), String> {
+    use climb_db::schema::formation_belongs_to;
+    use climb_db::models::NewFormationBelongsTo;
+
+    diesel::insert_into(formation_belongs_to::table)
+        .values(NewFormationBelongsTo {
+            formation_id: id,
+            area_id: Some(area_id),
+            super_formation_id: None,
+        })
+        .on_conflict(formation_belongs_to::formation_id)
+        .do_update()
+        .set((
+            formation_belongs_to::area_id.eq(excluded(formation_belongs_to::area_id)),
+            formation_belongs_to::super_formation_id.eq(None::<i32>),
+        ))
+        .execute(conn)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+pub fn set_formation_super_formation_id(conn: &mut PgConnection, id: i32, super_formation_id: i32) -> Result<(), String> {
+    use climb_db::schema::formation_belongs_to;
+    use climb_db::models::NewFormationBelongsTo;
+
+    diesel::insert_into(formation_belongs_to::table)
+        .values(NewFormationBelongsTo {
+            formation_id: id,
+            area_id: None,
+            super_formation_id: Some(super_formation_id),
+        })
+        .on_conflict(formation_belongs_to::formation_id)
+        .do_update()
+        .set((
+            formation_belongs_to::area_id.eq(None::<i32>),
+            formation_belongs_to::super_formation_id.eq(excluded(formation_belongs_to::super_formation_id)),
+        ))
+        .execute(conn)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
