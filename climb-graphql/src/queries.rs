@@ -1,4 +1,3 @@
-use climb_db::models::NewAreaBelongsTo;
 use diesel::upsert::excluded;
 use diesel::PgConnection;
 use diesel::prelude::*;
@@ -17,6 +16,7 @@ pub fn set_area_names(conn: &mut PgConnection, id: i32, names: Vec<String>) -> R
 
 pub fn set_area_super_area_id(conn: &mut PgConnection, id: i32, super_area_id: i32) -> Result<(), String> {
     use climb_db::schema::area_belongs_to;
+    use climb_db::models::NewAreaBelongsTo;
 
     diesel::insert_into(area_belongs_to::table)
         .values(NewAreaBelongsTo {
