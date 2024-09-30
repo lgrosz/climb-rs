@@ -106,19 +106,33 @@ impl Area {
     }
 }
 
-pub struct Climb(models::Climb);
+pub struct Climb(i32);
 
 #[Object]
 impl Climb {
     async fn id(&self) -> &i32 {
-        &self.0.id
+        &self.0
     }
 
-    async fn names(&self) -> Vec<String> {
-        self.0.names
-            .iter()
-            .filter_map(|name| name.clone())
-            .collect()
+    async fn names<'a>(&self, ctx: &Context<'a>) -> Vec<String> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::climbs;
+
+        let names = match climbs::table
+            .filter(climbs::id.eq(&self.0))
+            .select(climbs::names)
+            .first::<Vec<Option<String>>>(&mut conn)
+        {
+            Ok(names) => names,
+            Err(_) => return Vec::new(),
+        };
+
+        names.into_iter().filter_map(|name| name).collect()
     }
 
     async fn descriptions<'a>(&self, ctx: &Context<'a>) -> Option<Vec<KVPair>> {
@@ -134,7 +148,7 @@ impl Climb {
                     climb_descriptions::climb_description_type_id.eq(climb_description_types::id)
                     )
                 )
-            .filter(climb_descriptions::climb_id.eq(&self.0.id))
+            .filter(climb_descriptions::climb_id.eq(&self.0))
             .select((climb_description_types::name, climb_descriptions::value))
             .load::<(String, String)>(&mut conn)
             .ok()?;
@@ -160,7 +174,7 @@ impl Climb {
                     grades::grade_type_id.eq(grade_types::id)
                 )
             )
-            .filter(climb_grades::climb_id.eq(&self.0.id))
+            .filter(climb_grades::climb_id.eq(&self.0))
             .select((grade_types::name, grades::value))
             .load::<(String, String)>(&mut conn)
             .ok()?;
@@ -365,11 +379,11 @@ impl QueryRoot {
         };
 
         let result = query
-            .select(climbs::all_columns)
-            .load::<models::Climb>(&mut conn)
+            .select(climbs::id)
+            .load::<i32>(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let climbs = result.into_iter().map(|climb| Climb(climb)).collect();
+        let climbs = result.into_iter().map(|id| Climb(id)).collect();
 
         Ok(climbs)
     }
@@ -387,12 +401,13 @@ impl QueryRoot {
 
         use climb_db::schema::climbs;
 
-        let climb = climbs::table
+        let climb_id = climbs::table
             .find(id)
-            .first::<models::Climb>(&mut conn)
+            .select(climbs::id)
+            .first::<i32>(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Climb(climb))
+        Ok(Climb(climb_id))
     }
 
     async fn formations<'a>(
@@ -666,20 +681,18 @@ impl MutationRoot {
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
-        // Start a new transaction
         let mut conn = pool.get().map_err(|e| e.to_string())?;
-        Ok(conn.transaction(|conn| {
-            use climb_db::models::{NewClimb, Climb};
+
+        conn.transaction(|conn| {
+            use climb_db::models::NewClimb;
             use climb_db::schema::climbs;
 
-            // Insert the new climb
             let new_climb = NewClimb { names: vec!() };
-            let result_climb = diesel::insert_into(climbs::table)
-                .values(&new_climb)
-                .returning(Climb::as_returning())
-                .get_result::<Climb>(conn)?;
 
-            let climb_id = result_climb.id; // Assuming `id` is the primary key field in `Climb`
+            let climb_id = diesel::insert_into(climbs::table)
+                .values(&new_climb)
+                .returning(climbs::id)
+                .get_result::<i32>(conn)?;
 
             use climb_db::schema::climb_description_types;
 
@@ -754,8 +767,8 @@ impl MutationRoot {
                 }
             }
 
-            diesel::result::QueryResult::Ok(Climb(result_climb))
-        }).map_err(|e| e.to_string())?)
+            Ok(Climb(climb_id))
+        })
     }
 
     async fn add_climb_name<'a>(
@@ -777,16 +790,15 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        let updated_climb = diesel::update(climbs::table)
+        let _ = diesel::update(climbs::table)
             .filter(climbs::id.eq(id))
             .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_append(names, '{}')", name)
             )))
-            .returning(models::Climb::as_returning())
-            .get_result::<models::Climb>(&mut conn)
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Climb(updated_climb))
+        Ok(Climb(id))
     }
 
     async fn remove_climb_name<'a>(
@@ -808,16 +820,15 @@ impl MutationRoot {
         use diesel::dsl::sql;
         use diesel::sql_types::{Array,Nullable,Text};
 
-        let updated_climb = diesel::update(climbs::table)
+        let _ = diesel::update(climbs::table)
             .filter(climbs::id.eq(id))
             .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
                 &format!("array_remove(names, '{}')", name)
             )))
-            .returning(models::Climb::as_returning())
-            .get_result(&mut conn)
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Climb(updated_climb))
+        Ok(Climb(id))
     }
 
     async fn remove_climb<'a>(
@@ -831,15 +842,13 @@ impl MutationRoot {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::models::Climb;
         use climb_db::schema::climbs;
 
-        let climb = diesel::delete(climbs::table.filter(climbs::id.eq(id)))
-            .returning(Climb::as_returning())
-            .get_result(&mut conn)
+        let _ = diesel::delete(climbs::table.filter(climbs::id.eq(id)))
+            .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        Ok(Climb(climb))
+        Ok(Climb(id))
     }
 
     async fn add_formation<'a>(
