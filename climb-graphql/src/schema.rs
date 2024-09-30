@@ -671,7 +671,11 @@ impl MutationRoot {
         &self,
         ctx: &Context<'a>,
         #[graphql(
-            desc = "Adds a climb"
+            desc = "Names to associate with the climb"
+        )]
+        names: Option<Vec<String>>,
+        #[graphql(
+            desc = "Descriptions to associate with the climb"
         )]
         descriptions: Option<Vec<KVPair>>,
         #[graphql(
@@ -687,7 +691,9 @@ impl MutationRoot {
             use climb_db::models::NewClimb;
             use climb_db::schema::climbs;
 
-            let new_climb = NewClimb { names: vec!() };
+            let new_climb = NewClimb {
+                names: names.map_or_else(|| vec![], |vec| vec.into_iter().map(Some).collect()),
+            };
 
             let climb_id = diesel::insert_into(climbs::table)
                 .values(&new_climb)
