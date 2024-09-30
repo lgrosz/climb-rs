@@ -104,6 +104,27 @@ impl Area {
 
         data.into_iter().map(|id| Formation(id)).collect()
     }
+
+    async fn climbs<'a>(&self, ctx: &Context<'a>) -> Vec<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::climb_belongs_to;
+
+        let data = match climb_belongs_to::table
+            .filter(climb_belongs_to::area_id.eq(&self.0))
+            .select(climb_belongs_to::climb_id)
+            .load::<i32>(&mut conn)
+        {
+            Ok(ids) => ids,
+            Err(_) => Vec::new(),
+        };
+
+        data.into_iter().map(|id| Climb(id)).collect()
+    }
 }
 
 pub struct Climb(i32);
@@ -283,6 +304,27 @@ impl Formation {
         };
 
         data.into_iter().map(|id| Formation(id)).collect()
+    }
+
+    async fn climbs<'a>(&self, ctx: &Context<'a>) -> Vec<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::climb_belongs_to;
+
+        let data = match climb_belongs_to::table
+            .filter(climb_belongs_to::formation_id.eq(&self.0))
+            .select(climb_belongs_to::climb_id)
+            .load::<i32>(&mut conn)
+        {
+            Ok(ids) => ids,
+            Err(_) => Vec::new(),
+        };
+
+        data.into_iter().map(|id| Climb(id)).collect()
     }
 }
 
