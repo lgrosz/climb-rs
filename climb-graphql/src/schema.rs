@@ -754,6 +754,14 @@ impl MutationRoot {
             desc = "Grades to associate with the climb"
         )]
         grades: Option<Vec<KVPair>>,
+        #[graphql(
+            desc = "Parent area id of the climb"
+        )]
+        area_id: Option<i32>,
+        #[graphql(
+            desc = "Parent formation id of the climb"
+        )]
+        formation_id: Option<i32>,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -780,6 +788,16 @@ impl MutationRoot {
             if let Some(grades) = grades {
                 use crate::queries::set_climb_grades;
                 set_climb_grades(conn, climb_id, grades)?;
+            }
+
+            if let Some(area_id) = area_id {
+                use crate::queries::set_climb_area_id;
+                set_climb_area_id(conn, climb_id, area_id)?;
+            }
+
+            if let Some(formation_id) = formation_id {
+                use crate::queries::set_climb_formation_id;
+                set_climb_formation_id(conn, climb_id, formation_id)?;
             }
 
             Ok(Climb(climb_id))
