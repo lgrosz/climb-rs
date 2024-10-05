@@ -159,3 +159,55 @@ pub fn set_climb_grades(conn: &mut PgConnection, id: i32, grades: Vec<KVPair>) -
 
     Ok(())
 }
+
+pub fn set_climb_area_id(
+    conn: &mut PgConnection,
+    id: i32,
+    area_id: i32,
+) -> Result<(), String> {
+    use climb_db::models::NewClimbBelongsTo;
+    use climb_db::schema::climb_belongs_to;
+
+    diesel::insert_into(climb_belongs_to::table)
+        .values(NewClimbBelongsTo {
+            climb_id: id,
+            area_id: Some(area_id),
+            formation_id: None,
+        })
+        .on_conflict(climb_belongs_to::climb_id)
+        .do_update()
+        .set((
+            climb_belongs_to::area_id.eq(excluded(climb_belongs_to::area_id)),
+            climb_belongs_to::formation_id.eq(None::<i32>),
+        ))
+        .execute(conn)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+pub fn set_climb_formation_id(
+    conn: &mut PgConnection,
+    id: i32,
+    formation_id: i32,
+) -> Result<(), String> {
+    use climb_db::models::NewClimbBelongsTo;
+    use climb_db::schema::climb_belongs_to;
+
+    diesel::insert_into(climb_belongs_to::table)
+        .values(NewClimbBelongsTo {
+            climb_id: id,
+            area_id: None,
+            formation_id: Some(formation_id),
+        })
+        .on_conflict(climb_belongs_to::climb_id)
+        .do_update()
+        .set((
+            climb_belongs_to::area_id.eq(None::<i32>),
+            climb_belongs_to::formation_id.eq(excluded(climb_belongs_to::formation_id)),
+        ))
+        .execute(conn)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
