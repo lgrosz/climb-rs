@@ -16,14 +16,18 @@ pub fn set_area_names(conn: &mut PgConnection, id: i32, names: Vec<String>) -> R
     Ok(())
 }
 
-pub fn set_area_super_area_id(conn: &mut PgConnection, id: i32, super_area_id: i32) -> Result<(), String> {
-    use climb_db::schema::area_belongs_to;
+pub fn set_area_super_area_id(
+    conn: &mut PgConnection,
+    id: i32,
+    super_area_id: i32,
+) -> Result<(), String> {
     use climb_db::models::NewAreaBelongsTo;
+    use climb_db::schema::area_belongs_to;
 
     diesel::insert_into(area_belongs_to::table)
         .values(NewAreaBelongsTo {
             area_id: id,
-            super_area_id
+            super_area_id,
         })
         .on_conflict(area_belongs_to::area_id)
         .do_update()
@@ -56,9 +60,13 @@ pub fn set_formation_area_id(conn: &mut PgConnection, id: i32, area_id: i32) -> 
     Ok(())
 }
 
-pub fn set_formation_super_formation_id(conn: &mut PgConnection, id: i32, super_formation_id: i32) -> Result<(), String> {
-    use climb_db::schema::formation_belongs_to;
+pub fn set_formation_super_formation_id(
+    conn: &mut PgConnection,
+    id: i32,
+    super_formation_id: i32,
+) -> Result<(), String> {
     use climb_db::models::NewFormationBelongsTo;
+    use climb_db::schema::formation_belongs_to;
 
     diesel::insert_into(formation_belongs_to::table)
         .values(NewFormationBelongsTo {
@@ -70,7 +78,8 @@ pub fn set_formation_super_formation_id(conn: &mut PgConnection, id: i32, super_
         .do_update()
         .set((
             formation_belongs_to::area_id.eq(None::<i32>),
-            formation_belongs_to::super_formation_id.eq(excluded(formation_belongs_to::super_formation_id)),
+            formation_belongs_to::super_formation_id
+                .eq(excluded(formation_belongs_to::super_formation_id)),
         ))
         .execute(conn)
         .map_err(|e| e.to_string())?;
@@ -78,7 +87,11 @@ pub fn set_formation_super_formation_id(conn: &mut PgConnection, id: i32, super_
     Ok(())
 }
 
-pub fn set_climb_descriptions(conn: &mut PgConnection, id: i32, descriptions: Vec<KVPair>) -> Result<(), String> {
+pub fn set_climb_descriptions(
+    conn: &mut PgConnection,
+    id: i32,
+    descriptions: Vec<KVPair>,
+) -> Result<(), String> {
     use climb_db::schema::climb_description_types;
 
     // Map keys to climb_description_type_id
@@ -95,15 +108,18 @@ pub fn set_climb_descriptions(conn: &mut PgConnection, id: i32, descriptions: Ve
     use climb_db::schema::climb_descriptions;
 
     // Insert descriptions
-    let new_descriptions: Vec<NewClimbDescription> = descriptions.into_iter()
+    let new_descriptions: Vec<NewClimbDescription> = descriptions
+        .into_iter()
         .filter_map(|kv| {
-            type_ids_map.get(&kv.key).map(|type_id| NewClimbDescription {
-                climb_id: id,
-                climb_description_type_id: *type_id,
-                value: kv.value,
-            })
+            type_ids_map
+                .get(&kv.key)
+                .map(|type_id| NewClimbDescription {
+                    climb_id: id,
+                    climb_description_type_id: *type_id,
+                    value: kv.value,
+                })
         })
-    .collect();
+        .collect();
 
     diesel::insert_into(climb_descriptions::table)
         .values(&new_descriptions)
@@ -113,7 +129,11 @@ pub fn set_climb_descriptions(conn: &mut PgConnection, id: i32, descriptions: Ve
     Ok(())
 }
 
-pub fn set_climb_grades(conn: &mut PgConnection, id: i32, grades: Vec<KVPair>) -> Result<(), String> {
+pub fn set_climb_grades(
+    conn: &mut PgConnection,
+    id: i32,
+    grades: Vec<KVPair>,
+) -> Result<(), String> {
     use climb_db::schema::grade_types;
 
     // Map keys to grade_types::id
