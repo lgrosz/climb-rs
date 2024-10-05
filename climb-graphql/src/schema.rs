@@ -202,6 +202,36 @@ impl Climb {
 
         Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
     }
+
+    async fn area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::climb_belongs_to;
+
+        let data = climb_belongs_to::table
+            .filter(climb_belongs_to::climb_id.eq(&self.0))
+            .select(climb_belongs_to::area_id)
+            .first::<Option<i32>>(&mut conn)
+            .ok()?;
+
+        data.map(|id| Area(id))
+    }
+
+    async fn formation<'a>(&self, ctx: &Context<'a>) -> Option<Formation> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::climb_belongs_to;
+
+        let data = climb_belongs_to::table
+            .filter(climb_belongs_to::climb_id.eq(&self.0))
+            .select(climb_belongs_to::formation_id)
+            .first::<Option<i32>>(&mut conn)
+            .ok()?;
+
+        data.map(|id| Formation(id))
+    }
 }
 
 pub struct Formation(i32);
