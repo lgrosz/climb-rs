@@ -108,6 +108,16 @@ diesel::table! {
     use postgis_diesel::sql_types::*;
     use diesel::sql_types::*;
 
+    climb_vermin_grades (climb_id, value) {
+        climb_id -> Int4,
+        value -> Int4,
+    }
+}
+
+diesel::table! {
+    use postgis_diesel::sql_types::*;
+    use diesel::sql_types::*;
+
     climbers (id) {
         id -> Int4,
         #[max_length = 100]
@@ -198,6 +208,7 @@ diesel::joinable!(climb_descriptions -> climb_description_types (climb_descripti
 diesel::joinable!(climb_descriptions -> climbs (climb_id));
 diesel::joinable!(climb_grades -> climbs (climb_id));
 diesel::joinable!(climb_grades -> grades (grade_id));
+diesel::joinable!(climb_vermin_grades -> climbs (climb_id));
 diesel::joinable!(formation_belongs_to -> areas (area_id));
 diesel::joinable!(grades -> grade_types (grade_type_id));
 
@@ -212,6 +223,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     climb_descriptions,
     climb_grades,
     climb_variations,
+    climb_vermin_grades,
     climbers,
     climbs,
     formation_belongs_to,
