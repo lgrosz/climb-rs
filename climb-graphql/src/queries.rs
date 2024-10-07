@@ -1,8 +1,11 @@
+use std::str::FromStr;
+
+use climbing_grades::verm;
 use diesel::upsert::excluded;
 use diesel::PgConnection;
 use diesel::prelude::*;
 
-use crate::schema::KVPair;
+use crate::schema::{Grade, GradeType, KVPair};
 
 pub fn set_area_names(conn: &mut PgConnection, id: i32, names: Vec<String>) -> Result<(), String> {
     use climb_db::schema::areas;
@@ -132,52 +135,38 @@ pub fn set_climb_descriptions(
 pub fn set_climb_grades(
     conn: &mut PgConnection,
     id: i32,
-    grades: Vec<KVPair>,
+    grades: Vec<Grade>,
 ) -> Result<(), String> {
-    use climb_db::schema::grade_types;
+    conn.transaction::<_, diesel::result::Error, _>(|conn| {
+        let vermin_grades: Vec<u8> = grades
+            .into_iter()
+            .filter_map(|grade| {
+                if grade.grade_type == GradeType::Vermin {
+                    verm::Grade::from_str(grade.value.as_str())
+                        .ok()
+                        .map(|grade| grade.value())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
-    // Map keys to grade_types::id
-    let grade_keys: Vec<String> = grades.iter().map(|kv| kv.key.clone()).collect();
-    let grade_type_ids_map: std::collections::HashMap<String, i32> = grade_types::table
-        .filter(grade_types::name.eq_any(grade_keys))
-        .select((grade_types::name, grade_types::id))
-        .load::<(String, i32)>(conn)
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .collect::<std::collections::HashMap<_, _>>();
+        use climb_db::schema::climb_vermin_grades;
 
-    for kv in grades {
-        let grade_key = kv.key;
-        let grade_value = kv.value;
-
-        use climb_db::schema::grades;
-
-        if let Some(&grade_type_id) = grade_type_ids_map.get(&grade_key) {
-            let grade_id = diesel::insert_into(grades::table)
+        for value in vermin_grades {
+            diesel::insert_into(climb_vermin_grades::table)
                 .values((
-                    grades::value.eq(grade_value.clone()),
-                    grades::grade_type_id.eq(grade_type_id),
+                    climb_vermin_grades::climb_id.eq(id),
+                    climb_vermin_grades::value.eq(value as i32),
                 ))
-                .on_conflict((grades::value, grades::grade_type_id))
-                .do_update()
-                .set(grades::value.eq(grade_value.clone()))
-                .returning(grades::id)
-                .get_result::<i32>(conn)
-                .map_err(|e| e.to_string())?;
-
-            use climb_db::schema::climb_grades;
-
-            diesel::insert_into(climb_grades::table)
-                .values((
-                    climb_grades::climb_id.eq(id),
-                    climb_grades::grade_id.eq(grade_id),
-                ))
-                .execute(conn)
-                .map_err(|e| e.to_string())?;
+                .on_conflict((climb_vermin_grades::climb_id, climb_vermin_grades::value))
+                .do_nothing()
+                .execute(conn)?;
         }
-    }
 
-    Ok(())
+        Ok(())
+    })
+    .map_err(|e| e.to_string())
 }
 
 pub fn set_climb_area_id(
