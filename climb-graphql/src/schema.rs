@@ -772,7 +772,7 @@ impl MutationRoot {
             use climb_db::schema::climbs;
 
             let new_climb = NewClimb {
-                names: names.map_or_else(|| vec![], |vec| vec.into_iter().map(Some).collect()),
+                names: names.map_or_else(std::vec::Vec::new, |vec| vec.into_iter().map(Some).collect()),
             };
 
             let climb_id = diesel::insert_into(climbs::table)
@@ -902,7 +902,7 @@ impl MutationRoot {
             use postgis_diesel::types::Point;
 
             let new_formation = NewFormation {
-                names: names.map_or_else(|| vec![], |vec| vec.into_iter().map(Some).collect()),
+                names: names.map_or_else(std::vec::Vec::new, |vec| vec.into_iter().map(Some).collect()),
                 location: location.map(|loc| Point { x: loc.latitude, y: loc.longitude, srid: None }),
             };
 
