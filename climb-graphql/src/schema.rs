@@ -45,7 +45,7 @@ impl Area {
             Err(_) => return Vec::new(),
         };
 
-        names.into_iter().filter_map(|name| name).collect()
+        names.into_iter().flatten().collect()
     }
 
     async fn super_area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
@@ -81,7 +81,7 @@ impl Area {
             Err(_) => Vec::new(),
         };
 
-        data.into_iter().map(|id| Area(id)).collect()
+        data.into_iter().map(Area).collect()
     }
 
     async fn formations<'a>(&self, ctx: &Context<'a>) -> Vec<Formation> {
@@ -102,7 +102,7 @@ impl Area {
             Err(_) => Vec::new(),
         };
 
-        data.into_iter().map(|id| Formation(id)).collect()
+        data.into_iter().map(Formation).collect()
     }
 
     async fn climbs<'a>(&self, ctx: &Context<'a>) -> Vec<Climb> {
@@ -123,7 +123,7 @@ impl Area {
             Err(_) => Vec::new(),
         };
 
-        data.into_iter().map(|id| Climb(id)).collect()
+        data.into_iter().map(Climb).collect()
     }
 }
 
@@ -153,7 +153,7 @@ impl Climb {
             Err(_) => return Vec::new(),
         };
 
-        names.into_iter().filter_map(|name| name).collect()
+        names.into_iter().flatten().collect()
     }
 
     async fn descriptions<'a>(&self, ctx: &Context<'a>) -> Option<Vec<KVPair>> {
@@ -209,13 +209,12 @@ impl Climb {
 
         use climb_db::schema::climb_belongs_to;
 
-        let data = climb_belongs_to::table
+        climb_belongs_to::table
             .filter(climb_belongs_to::climb_id.eq(&self.0))
             .select(climb_belongs_to::area_id)
             .first::<Option<i32>>(&mut conn)
-            .ok()?;
-
-        data.map(|id| Area(id))
+            .ok()?
+            .map(Area)
     }
 
     async fn formation<'a>(&self, ctx: &Context<'a>) -> Option<Formation> {
@@ -224,13 +223,12 @@ impl Climb {
 
         use climb_db::schema::climb_belongs_to;
 
-        let data = climb_belongs_to::table
+        climb_belongs_to::table
             .filter(climb_belongs_to::climb_id.eq(&self.0))
             .select(climb_belongs_to::formation_id)
             .first::<Option<i32>>(&mut conn)
-            .ok()?;
-
-        data.map(|id| Formation(id))
+            .ok()?
+            .map(Formation)
     }
 }
 
@@ -260,7 +258,7 @@ impl Formation {
             Err(_) => return Vec::new(),
         };
 
-        names.into_iter().filter_map(|name| name).collect()
+        names.into_iter().flatten().collect()
     }
 
     async fn location<'a>(&self, ctx: &Context<'a>) -> Option<Coordinate> {
@@ -291,13 +289,12 @@ impl Formation {
 
         use climb_db::schema::formation_belongs_to;
 
-        let data = formation_belongs_to::table
+        formation_belongs_to::table
             .filter(formation_belongs_to::formation_id.eq(&self.0))
             .select(formation_belongs_to::area_id)
             .first::<Option<i32>>(&mut conn)
-            .ok()?;
-
-        data.map(|id| Area(id))
+            .ok()?
+            .map(Area)
     }
 
     async fn super_formation<'a>(&self, ctx: &Context<'a>) -> Option<Formation> {
@@ -306,13 +303,12 @@ impl Formation {
 
         use climb_db::schema::formation_belongs_to;
 
-        let data = formation_belongs_to::table
+        formation_belongs_to::table
             .filter(formation_belongs_to::formation_id.eq(&self.0))
             .select(formation_belongs_to::super_formation_id)
             .first::<Option<i32>>(&mut conn)
-            .ok()?;
-
-        data.map(|id| Formation(id))
+            .ok()?
+            .map(Formation)
     }
 
     async fn sub_formations<'a>(&self, ctx: &Context<'a>) -> Vec<Formation> {
@@ -333,7 +329,7 @@ impl Formation {
             Err(_) => Vec::new(),
         };
 
-        data.into_iter().map(|id| Formation(id)).collect()
+        data.into_iter().map(Formation).collect()
     }
 
     async fn climbs<'a>(&self, ctx: &Context<'a>) -> Vec<Climb> {
@@ -354,7 +350,7 @@ impl Formation {
             Err(_) => Vec::new(),
         };
 
-        data.into_iter().map(|id| Climb(id)).collect()
+        data.into_iter().map(Climb).collect()
     }
 }
 
@@ -390,7 +386,7 @@ impl QueryRoot {
             .load(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let areas = result.into_iter().map(|id| Area(id)).collect();
+        let areas = result.into_iter().map(Area).collect();
 
         Ok(areas)
     }
@@ -455,7 +451,7 @@ impl QueryRoot {
             .load::<i32>(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let climbs = result.into_iter().map(|id| Climb(id)).collect();
+        let climbs = result.into_iter().map(Climb).collect();
 
         Ok(climbs)
     }
@@ -520,7 +516,7 @@ impl QueryRoot {
             .load::<i32>(&mut conn)
             .map_err(|e| e.to_string())?;
 
-        let formations = result.into_iter().map(|id| Formation(id)).collect();
+        let formations = result.into_iter().map(Formation).collect();
 
         Ok(formations)
     }
@@ -772,7 +768,7 @@ impl MutationRoot {
             use climb_db::schema::climbs;
 
             let new_climb = NewClimb {
-                names: names.map_or_else(|| vec![], |vec| vec.into_iter().map(Some).collect()),
+                names: names.map_or_else(std::vec::Vec::new, |vec| vec.into_iter().map(Some).collect()),
             };
 
             let climb_id = diesel::insert_into(climbs::table)
@@ -902,7 +898,7 @@ impl MutationRoot {
             use postgis_diesel::types::Point;
 
             let new_formation = NewFormation {
-                names: names.map_or_else(|| vec![], |vec| vec.into_iter().map(Some).collect()),
+                names: names.map_or_else(std::vec::Vec::new, |vec| vec.into_iter().map(Some).collect()),
                 location: location.map(|loc| Point { x: loc.latitude, y: loc.longitude, srid: None }),
             };
 
