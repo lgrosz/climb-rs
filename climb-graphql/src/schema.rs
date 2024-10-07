@@ -45,7 +45,7 @@ impl Area {
             Err(_) => return Vec::new(),
         };
 
-        names.into_iter().filter_map(|name| name).collect()
+        names.into_iter().flatten().collect()
     }
 
     async fn super_area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
@@ -153,7 +153,7 @@ impl Climb {
             Err(_) => return Vec::new(),
         };
 
-        names.into_iter().filter_map(|name| name).collect()
+        names.into_iter().flatten().collect()
     }
 
     async fn descriptions<'a>(&self, ctx: &Context<'a>) -> Option<Vec<KVPair>> {
@@ -260,7 +260,7 @@ impl Formation {
             Err(_) => return Vec::new(),
         };
 
-        names.into_iter().filter_map(|name| name).collect()
+        names.into_iter().flatten().collect()
     }
 
     async fn location<'a>(&self, ctx: &Context<'a>) -> Option<Coordinate> {
