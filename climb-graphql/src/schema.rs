@@ -1,4 +1,7 @@
-use async_graphql::{Context, FieldResult, InputObject, Object, SimpleObject};
+use std::str::FromStr;
+
+use async_graphql::{Context, FieldResult, InputObject, Object, SimpleObject, Enum};
+use climbing_grades::verm;
 use r2d2::Pool;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
@@ -6,6 +9,19 @@ use diesel::r2d2::ConnectionManager;
 use climb_db::models;
 
 pub struct Area(i32);
+
+#[derive(Enum, Copy, Clone, Eq, PartialEq)]
+pub enum GradeType {
+    Vermin,
+}
+
+#[derive(SimpleObject, InputObject)]
+#[graphql(input_name = "GradeInput")]
+pub struct Grade {
+    #[graphql(name="type")]
+    pub grade_type: GradeType,
+    pub value: String,
+}
 
 #[derive(SimpleObject, InputObject)]
 #[graphql(input_name = "KVPairInput")]
@@ -177,30 +193,24 @@ impl Climb {
         Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
     }
 
-    async fn grades<'a>(&self, ctx: &Context<'a>) -> Option<Vec<KVPair>> {
+    async fn grades<'a>(&self, ctx: &Context<'a>) -> Option<Vec<Grade>> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().ok()?;
 
-        use climb_db::schema::{climb_grades, grade_types, grades};
+        use climb_db::schema::climb_vermin_grades;
 
-        // TODO This would be better if it was async
-        let data = climb_grades::table
-            .inner_join(
-                grades::table.on(
-                    climb_grades::grade_id.eq(grades::id)
-                    )
-                )
-            .inner_join(
-                grade_types::table.on(
-                    grades::grade_type_id.eq(grade_types::id)
-                )
-            )
-            .filter(climb_grades::climb_id.eq(&self.0))
-            .select((grade_types::name, grades::value))
-            .load::<(String, String)>(&mut conn)
-            .ok()?;
-
-        Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
+        climb_vermin_grades::table
+            .filter(climb_vermin_grades::climb_id.eq(&self.0))
+            .select(climb_vermin_grades::value)
+            .load::<i32>(&mut conn)
+            .ok()?
+            .into_iter()
+            .map(|value| verm::Grade::new(value as u8))
+            .map(|grade| Some(Grade {
+                grade_type: GradeType::Vermin,
+                value: grade.to_string()
+            }))
+            .collect()
     }
 
     async fn area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
@@ -749,7 +759,7 @@ impl MutationRoot {
         #[graphql(
             desc = "Grades to associate with the climb"
         )]
-        grades: Option<Vec<KVPair>>,
+        grades: Option<Vec<Grade>>,
         #[graphql(
             desc = "Parent area id of the climb"
         )]
@@ -856,6 +866,39 @@ impl MutationRoot {
             )))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
+
+        Ok(Climb(id))
+    }
+
+    async fn add_climb_grade<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Climb id to add grade to"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Grade which to add"
+        )]
+        grade: Grade
+    ) -> FieldResult<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::climb_vermin_grades;
+
+        match grade.grade_type {
+            GradeType::Vermin => {
+                use climb_db::models::NewClimbVerminGrade;
+
+                let grade = verm::Grade::from_str(grade.value.as_str()).map_err(|_|"Failed to parse grade")?;
+                let db_grade = NewClimbVerminGrade { climb_id: id, value: grade.value() as i32 };
+
+                let _ = diesel::insert_into(climb_vermin_grades::table)
+                    .values(db_grade)
+                    .execute(&mut conn)?;
+            },
+        };
 
         Ok(Climb(id))
     }
