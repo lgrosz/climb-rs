@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_graphql::{Context, FieldResult, InputObject, Object, SimpleObject, Enum};
 use climb_grades::vermin;
 use r2d2::Pool;
@@ -864,6 +866,39 @@ impl MutationRoot {
             )))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
+
+        Ok(Climb(id))
+    }
+
+    async fn add_climb_grade<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Climb id to add grade to"
+        )]
+        id: i32,
+        #[graphql(
+            desc = "Grade which to add"
+        )]
+        grade: Grade
+    ) -> FieldResult<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::climb_vermin_grades;
+
+        match grade.grade_type {
+            GradeType::Vermin => {
+                use climb_db::models::NewClimbVerminGrade;
+
+                let grade = vermin::Grade::from_str(grade.value.as_str()).map_err(|_|"Failed to parse grade")?;
+                let db_grade = NewClimbVerminGrade { climb_id: id, value: grade.value() as i32 };
+
+                let _ = diesel::insert_into(climb_vermin_grades::table)
+                    .values(db_grade)
+                    .execute(&mut conn)?;
+            },
+        };
 
         Ok(Climb(id))
     }
