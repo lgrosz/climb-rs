@@ -903,6 +903,37 @@ impl MutationRoot {
         Ok(Climb(id))
     }
 
+    async fn remove_climb_grade<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(desc = "Climb id to remove grade from")] id: i32,
+        #[graphql(desc = "Grade to remove")] grade: Grade,
+    ) -> FieldResult<Climb> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::climb_vermin_grades::dsl::*;
+
+        match grade.grade_type {
+            GradeType::Vermin => {
+                let parsed_grade = verm::Grade::from_str(grade.value.as_str())
+                    .map_err(|_| "Failed to parse grade")?;
+
+                let num_deleted = diesel::delete(
+                    climb_vermin_grades
+                        .filter(climb_id.eq(id).and(value.eq(parsed_grade.value() as i32))),
+                )
+                .execute(&mut conn)?;
+
+                if num_deleted == 0 {
+                    return Err("Grade not found for the specified climb".into());
+                }
+            }
+        }
+
+        Ok(Climb(id))
+    }
+
     async fn remove_climb<'a>(
         &self,
         ctx: &Context<'a>,
