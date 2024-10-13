@@ -14,11 +14,4 @@ CREATE TABLE grades (
     UNIQUE (grade_type_id, value)
 );
 
-CREATE TABLE climb_grades (
-    climb_id INTEGER NOT NULL REFERENCES climbs(id) ON DELETE CASCADE,
-    grade_id INTEGER NOT NULL REFERENCES grades(id) ON DELETE CASCADE,
-    PRIMARY KEY (climb_id, grade_id)
-);
-
--- NOTE `grades` has the potential to generate many orphans as rows in
--- `climb_grades` are removed.
+-- NOTE `grades` has the potential to generate many orphans

@@ -202,22 +202,6 @@ pub struct NewGrade {
     pub value: String,
 }
 
-#[derive(Queryable)]
-#[diesel(table_name = crate::schema::climb_grades)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct ClimbGrade {
-    pub climb_id: i32,
-    pub grade_id: i32,
-}
-
-#[derive(Insertable)]
-#[diesel(table_name = crate::schema::climb_grades)]
-#[diesel(check_for_backend(diesel::pg::Pg))]
-pub struct NewClimbGrade {
-    pub climb_id: i32,
-    pub grade_id: i32,
-}
-
 #[derive(Insertable)]
 #[diesel(table_name = crate::schema::climb_vermin_grades)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
