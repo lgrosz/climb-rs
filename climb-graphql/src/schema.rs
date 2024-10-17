@@ -984,6 +984,57 @@ impl MutationRoot {
         Ok(Climb(id))
     }
 
+    async fn add_ascent<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Id of the ascended climb"
+        )]
+        climb_id: i32,
+    ) -> FieldResult<Ascent> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        conn.transaction(|conn| {
+            use climb_db::models::NewAscent;
+            use climb_db::schema::ascents;
+
+            let new_ascent = NewAscent {
+                climb_id,
+                ascent_date: None,
+            };
+
+            let ascent_id = diesel::insert_into(ascents::table)
+                .values(&new_ascent)
+                .returning(ascents::id)
+                .get_result::<i32>(conn)?;
+
+            Ok(Ascent(ascent_id))
+        })
+    }
+
+    async fn remove_ascent<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(
+            desc = "Id of the ascent"
+        )]
+        id: i32,
+    ) -> FieldResult<Ascent> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use climb_db::schema::ascents;
+
+        let _ = diesel::delete(ascents::table.filter(ascents::id.eq(id)))
+            .execute(&mut conn)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Ascent(id))
+    }
+
+
     async fn add_formation<'a>(
         &self,
         ctx: &Context<'a>,
