@@ -1,12 +1,12 @@
 use std::str::FromStr;
 
-use async_graphql::{Context, FieldResult, InputObject, Object, SimpleObject, Enum};
+use async_graphql::{Context, Enum, FieldResult, InputObject, Object, SimpleObject};
+use climb_db::models;
 use climbing_grades::verm;
-use r2d2::Pool;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use diesel::r2d2::ConnectionManager;
-use climb_db::models;
+use r2d2::Pool;
 
 pub struct Area(i32);
 
@@ -18,7 +18,7 @@ pub enum GradeType {
 #[derive(SimpleObject, InputObject)]
 #[graphql(input_name = "GradeInput")]
 pub struct Grade {
-    #[graphql(name="type")]
+    #[graphql(name = "type")]
     pub grade_type: GradeType,
     pub value: String,
 }
@@ -150,6 +150,21 @@ impl Ascent {
     async fn id(&self) -> &i32 {
         &self.0
     }
+
+    async fn climb<'a>(&self, ctx: &Context<'a>) -> Climb {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().expect("Need connection");
+
+        use climb_db::schema::ascents;
+
+        let climb_id = ascents::table
+            .find(&self.0)
+            .select(ascents::climb_id)
+            .first(&mut conn)
+            .expect("All ascents should have a climb");
+
+        Climb(climb_id)
+    }
 }
 
 pub struct Climb(i32);
@@ -185,21 +200,24 @@ impl Climb {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().ok()?;
 
-        use climb_db::schema::{climb_descriptions, climb_description_types};
+        use climb_db::schema::{climb_description_types, climb_descriptions};
 
         // TODO This would be better if it was async
-        let data = climb_descriptions::table
-            .inner_join(
-                climb_description_types::table.on(
-                    climb_descriptions::climb_description_type_id.eq(climb_description_types::id)
-                    )
-                )
-            .filter(climb_descriptions::climb_id.eq(&self.0))
-            .select((climb_description_types::name, climb_descriptions::value))
-            .load::<(String, String)>(&mut conn)
-            .ok()?;
+        let data =
+            climb_descriptions::table
+                .inner_join(climb_description_types::table.on(
+                    climb_descriptions::climb_description_type_id.eq(climb_description_types::id),
+                ))
+                .filter(climb_descriptions::climb_id.eq(&self.0))
+                .select((climb_description_types::name, climb_descriptions::value))
+                .load::<(String, String)>(&mut conn)
+                .ok()?;
 
-        Some(data.into_iter().map(|(key, value)| KVPair { key, value }).collect())
+        Some(
+            data.into_iter()
+                .map(|(key, value)| KVPair { key, value })
+                .collect(),
+        )
     }
 
     async fn grades<'a>(&self, ctx: &Context<'a>) -> Option<Vec<Grade>> {
@@ -215,10 +233,12 @@ impl Climb {
             .ok()?
             .into_iter()
             .map(|value| verm::Grade::new(value as u8))
-            .map(|grade| Some(Grade {
-                grade_type: GradeType::Vermin,
-                value: grade.to_string()
-            }))
+            .map(|grade| {
+                Some(Grade {
+                    grade_type: GradeType::Vermin,
+                    value: grade.to_string(),
+                })
+            })
             .collect()
     }
 
@@ -320,7 +340,10 @@ impl Formation {
             Err(_) => return None,
         };
 
-        location.map(|loc| Coordinate { latitude: loc.x, longitude: loc.y })
+        location.map(|loc| Coordinate {
+            latitude: loc.x,
+            longitude: loc.y,
+        })
     }
 
     async fn area<'a>(&self, ctx: &Context<'a>) -> Option<Area> {
@@ -401,15 +424,12 @@ impl QueryRoot {
     async fn areas<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Parent area id"
-        )]
-        area_id: Option<i32>,
+        #[graphql(desc = "Parent area id")] area_id: Option<i32>,
     ) -> FieldResult<Vec<Area>> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::schema::{areas,area_belongs_to};
+        use climb_db::schema::{area_belongs_to, areas};
 
         let query = areas::table
             .left_join(area_belongs_to::table.on(area_belongs_to::area_id.eq(areas::id)))
@@ -434,10 +454,7 @@ impl QueryRoot {
     async fn area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Returns the area with the given id"
-        )]
-        id: i32,
+        #[graphql(desc = "Returns the area with the given id")] id: i32,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -456,19 +473,13 @@ impl QueryRoot {
     async fn climbs<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Parent area id"
-        )]
-        area_id: Option<i32>,
-        #[graphql(
-            desc = "Parent formation id"
-        )]
-        formation_id: Option<i32>
+        #[graphql(desc = "Parent area id")] area_id: Option<i32>,
+        #[graphql(desc = "Parent formation id")] formation_id: Option<i32>,
     ) -> FieldResult<Vec<Climb>> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::schema::{climbs,climb_belongs_to};
+        use climb_db::schema::{climb_belongs_to, climbs};
 
         let query = climbs::table
             .left_join(climb_belongs_to::table.on(climb_belongs_to::climb_id.eq(climbs::id)))
@@ -499,10 +510,7 @@ impl QueryRoot {
     async fn climb<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Returns climb with given id"
-        )]
-        id: i32,
+        #[graphql(desc = "Returns climb with given id")] id: i32,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -521,22 +529,19 @@ impl QueryRoot {
     async fn formations<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Parent area id"
-        )]
-        area_id: Option<i32>,
-        #[graphql(
-            desc = "Parent formation id"
-        )]
-        formation_id: Option<i32>
+        #[graphql(desc = "Parent area id")] area_id: Option<i32>,
+        #[graphql(desc = "Parent formation id")] formation_id: Option<i32>,
     ) -> FieldResult<Vec<Formation>> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
-        use climb_db::schema::{formations,formation_belongs_to};
+        use climb_db::schema::{formation_belongs_to, formations};
 
         let query = formations::table
-            .left_join(formation_belongs_to::table.on(formation_belongs_to::formation_id.eq(formations::id)))
+            .left_join(
+                formation_belongs_to::table
+                    .on(formation_belongs_to::formation_id.eq(formations::id)),
+            )
             .into_boxed();
 
         let query = if let Some(id) = area_id {
@@ -564,10 +569,7 @@ impl QueryRoot {
     async fn formation<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Returns the formation with given id"
-        )]
-        id: i32,
+        #[graphql(desc = "Returns the formation with given id")] id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -602,7 +604,7 @@ impl MutationRoot {
             use climb_db::models::NewArea;
             use climb_db::schema::areas;
 
-            let new_area = NewArea { names: vec!() };
+            let new_area = NewArea { names: vec![] };
             let area_id = diesel::insert_into(areas::table)
                 .values(&new_area)
                 .returning(areas::id)
@@ -626,27 +628,22 @@ impl MutationRoot {
     async fn add_area_name<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Area id to add name to"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Name which to add"
-        )]
-        name: String
+        #[graphql(desc = "Area id to add name to")] id: i32,
+        #[graphql(desc = "Name which to add")] name: String,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::areas;
         use diesel::dsl::sql;
-        use diesel::sql_types::{Array,Nullable,Text};
+        use diesel::sql_types::{Array, Nullable, Text};
 
         diesel::update(areas::table)
             .filter(areas::id.eq(id))
-            .set(areas::names.eq(sql::<Array<Nullable<Text>>>(
-                &format!("array_append(names, '{}')", name)
-            )))
+            .set(areas::names.eq(sql::<Array<Nullable<Text>>>(&format!(
+                "array_append(names, '{}')",
+                name
+            ))))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
@@ -662,27 +659,22 @@ impl MutationRoot {
     async fn remove_area_name<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Area id to remove name from"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Name which to remove"
-        )]
-        name: String
+        #[graphql(desc = "Area id to remove name from")] id: i32,
+        #[graphql(desc = "Name which to remove")] name: String,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::areas;
         use diesel::dsl::sql;
-        use diesel::sql_types::{Array,Nullable,Text};
+        use diesel::sql_types::{Array, Nullable, Text};
 
         let area_id = diesel::update(areas::table)
             .filter(areas::id.eq(id))
-            .set(areas::names.eq(sql::<Array<Nullable<Text>>>(
-                &format!("array_remove(names, '{}')", name)
-            )))
+            .set(areas::names.eq(sql::<Array<Nullable<Text>>>(&format!(
+                "array_remove(names, '{}')",
+                name
+            ))))
             .returning(areas::id)
             .get_result(&mut conn)
             .map_err(|e| e.to_string())?;
@@ -693,14 +685,8 @@ impl MutationRoot {
     async fn set_super_area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Area id to set 'super area' of"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Super area id"
-        )]
-        super_area_id: i32
+        #[graphql(desc = "Area id to set 'super area' of")] id: i32,
+        #[graphql(desc = "Super area id")] super_area_id: i32,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -710,7 +696,7 @@ impl MutationRoot {
 
         let new_area_belongs_to = models::NewAreaBelongsTo {
             area_id: id,
-            super_area_id
+            super_area_id,
         };
 
         diesel::insert_into(area_belongs_to::table)
@@ -734,22 +720,18 @@ impl MutationRoot {
     async fn clear_super_area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Area id to clear 'super area' of"
-        )]
-        id: i32,
+        #[graphql(desc = "Area id to clear 'super area' of")] id: i32,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::area_belongs_to;
 
-        let area_id = diesel::delete(
-            area_belongs_to::table
-                .filter(area_belongs_to::area_id.eq(id)))
-            .returning(area_belongs_to::area_id)
-            .get_result(&mut conn)
-            .map_err(|e| e.to_string())?;
+        let area_id =
+            diesel::delete(area_belongs_to::table.filter(area_belongs_to::area_id.eq(id)))
+                .returning(area_belongs_to::area_id)
+                .get_result(&mut conn)
+                .map_err(|e| e.to_string())?;
 
         Ok(Area(area_id))
     }
@@ -757,10 +739,7 @@ impl MutationRoot {
     async fn remove_area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Removes area with given id"
-        )]
-        id: i32,
+        #[graphql(desc = "Removes area with given id")] id: i32,
     ) -> FieldResult<Area> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -778,26 +757,13 @@ impl MutationRoot {
     async fn add_climb<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Names to associate with the climb"
-        )]
-        names: Option<Vec<String>>,
-        #[graphql(
-            desc = "Descriptions to associate with the climb"
-        )]
-        descriptions: Option<Vec<KVPair>>,
-        #[graphql(
-            desc = "Grades to associate with the climb"
-        )]
-        grades: Option<Vec<Grade>>,
-        #[graphql(
-            desc = "Parent area id of the climb"
-        )]
-        area_id: Option<i32>,
-        #[graphql(
-            desc = "Parent formation id of the climb"
-        )]
-        formation_id: Option<i32>,
+        #[graphql(desc = "Names to associate with the climb")] names: Option<Vec<String>>,
+        #[graphql(desc = "Descriptions to associate with the climb")] descriptions: Option<
+            Vec<KVPair>,
+        >,
+        #[graphql(desc = "Grades to associate with the climb")] grades: Option<Vec<Grade>>,
+        #[graphql(desc = "Parent area id of the climb")] area_id: Option<i32>,
+        #[graphql(desc = "Parent formation id of the climb")] formation_id: Option<i32>,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -808,7 +774,9 @@ impl MutationRoot {
             use climb_db::schema::climbs;
 
             let new_climb = NewClimb {
-                names: names.map_or_else(std::vec::Vec::new, |vec| vec.into_iter().map(Some).collect()),
+                names: names.map_or_else(std::vec::Vec::new, |vec| {
+                    vec.into_iter().map(Some).collect()
+                }),
             };
 
             let climb_id = diesel::insert_into(climbs::table)
@@ -843,27 +811,22 @@ impl MutationRoot {
     async fn add_climb_name<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Climb id to add name to"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Name which to add"
-        )]
-        name: String
+        #[graphql(desc = "Climb id to add name to")] id: i32,
+        #[graphql(desc = "Name which to add")] name: String,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::climbs;
         use diesel::dsl::sql;
-        use diesel::sql_types::{Array,Nullable,Text};
+        use diesel::sql_types::{Array, Nullable, Text};
 
         let _ = diesel::update(climbs::table)
             .filter(climbs::id.eq(id))
-            .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
-                &format!("array_append(names, '{}')", name)
-            )))
+            .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(&format!(
+                "array_append(names, '{}')",
+                name
+            ))))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
@@ -873,27 +836,22 @@ impl MutationRoot {
     async fn remove_climb_name<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Climb id to remove name from"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Name which to remove"
-        )]
-        name: String
+        #[graphql(desc = "Climb id to remove name from")] id: i32,
+        #[graphql(desc = "Name which to remove")] name: String,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::climbs;
         use diesel::dsl::sql;
-        use diesel::sql_types::{Array,Nullable,Text};
+        use diesel::sql_types::{Array, Nullable, Text};
 
         let _ = diesel::update(climbs::table)
             .filter(climbs::id.eq(id))
-            .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(
-                &format!("array_remove(names, '{}')", name)
-            )))
+            .set(climbs::names.eq(sql::<Array<Nullable<Text>>>(&format!(
+                "array_remove(names, '{}')",
+                name
+            ))))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
@@ -903,14 +861,8 @@ impl MutationRoot {
     async fn add_climb_grade<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Climb id to add grade to"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Grade which to add"
-        )]
-        grade: Grade
+        #[graphql(desc = "Climb id to add grade to")] id: i32,
+        #[graphql(desc = "Grade which to add")] grade: Grade,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -921,13 +873,17 @@ impl MutationRoot {
             GradeType::Vermin => {
                 use climb_db::models::NewClimbVerminGrade;
 
-                let grade = verm::Grade::from_str(grade.value.as_str()).map_err(|_|"Failed to parse grade")?;
-                let db_grade = NewClimbVerminGrade { climb_id: id, value: grade.value() as i32 };
+                let grade = verm::Grade::from_str(grade.value.as_str())
+                    .map_err(|_| "Failed to parse grade")?;
+                let db_grade = NewClimbVerminGrade {
+                    climb_id: id,
+                    value: grade.value() as i32,
+                };
 
                 let _ = diesel::insert_into(climb_vermin_grades::table)
                     .values(db_grade)
                     .execute(&mut conn)?;
-            },
+            }
         };
 
         Ok(Climb(id))
@@ -967,10 +923,7 @@ impl MutationRoot {
     async fn remove_climb<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Removes climb with given id"
-        )]
-        id: i32,
+        #[graphql(desc = "Removes climb with given id")] id: i32,
     ) -> FieldResult<Climb> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -987,10 +940,7 @@ impl MutationRoot {
     async fn add_ascent<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Id of the ascended climb"
-        )]
-        climb_id: i32,
+        #[graphql(desc = "Id of the ascended climb")] climb_id: i32,
     ) -> FieldResult<Ascent> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -1017,10 +967,7 @@ impl MutationRoot {
     async fn remove_ascent<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Id of the ascent"
-        )]
-        id: i32,
+        #[graphql(desc = "Id of the ascent")] id: i32,
     ) -> FieldResult<Ascent> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1033,7 +980,6 @@ impl MutationRoot {
 
         Ok(Ascent(id))
     }
-
 
     async fn add_formation<'a>(
         &self,
@@ -1053,8 +999,14 @@ impl MutationRoot {
             use postgis_diesel::types::Point;
 
             let new_formation = NewFormation {
-                names: names.map_or_else(std::vec::Vec::new, |vec| vec.into_iter().map(Some).collect()),
-                location: location.map(|loc| Point { x: loc.latitude, y: loc.longitude, srid: None }),
+                names: names.map_or_else(std::vec::Vec::new, |vec| {
+                    vec.into_iter().map(Some).collect()
+                }),
+                location: location.map(|loc| Point {
+                    x: loc.latitude,
+                    y: loc.longitude,
+                    srid: None,
+                }),
             };
 
             let formation_id = diesel::insert_into(formations::table)
@@ -1080,27 +1032,22 @@ impl MutationRoot {
     async fn add_formation_name<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to add name to"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Name which to add"
-        )]
-        name: String
+        #[graphql(desc = "Formation id to add name to")] id: i32,
+        #[graphql(desc = "Name which to add")] name: String,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::formations;
         use diesel::dsl::sql;
-        use diesel::sql_types::{Array,Nullable,Text};
+        use diesel::sql_types::{Array, Nullable, Text};
 
         let _ = diesel::update(formations::table)
             .filter(formations::id.eq(id))
-            .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
-                &format!("array_append(names, '{}')", name)
-            )))
+            .set(formations::names.eq(sql::<Array<Nullable<Text>>>(&format!(
+                "array_append(names, '{}')",
+                name
+            ))))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
@@ -1110,27 +1057,22 @@ impl MutationRoot {
     async fn remove_formation_name<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to remove name from"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Name which to remove"
-        )]
-        name: String
+        #[graphql(desc = "Formation id to remove name from")] id: i32,
+        #[graphql(desc = "Name which to remove")] name: String,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
 
         use climb_db::schema::formations;
         use diesel::dsl::sql;
-        use diesel::sql_types::{Array,Nullable,Text};
+        use diesel::sql_types::{Array, Nullable, Text};
 
         let _ = diesel::update(formations::table)
             .filter(formations::id.eq(id))
-            .set(formations::names.eq(sql::<Array<Nullable<Text>>>(
-                &format!("array_remove(names, '{}')", name)
-            )))
+            .set(formations::names.eq(sql::<Array<Nullable<Text>>>(&format!(
+                "array_remove(names, '{}')",
+                name
+            ))))
             .execute(&mut conn)
             .map_err(|e| e.to_string())?;
 
@@ -1140,14 +1082,8 @@ impl MutationRoot {
     async fn set_formation_location<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to set location of"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Location of the formation"
-        )]
-        location: Coordinate
+        #[graphql(desc = "Formation id to set location of")] id: i32,
+        #[graphql(desc = "Location of the formation")] location: Coordinate,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1171,10 +1107,7 @@ impl MutationRoot {
     async fn clear_formation_location<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to set location of"
-        )]
-        id: i32,
+        #[graphql(desc = "Formation id to set location of")] id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1194,14 +1127,8 @@ impl MutationRoot {
     async fn set_formation_area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to area of"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Area id"
-        )]
-        area_id: i32,
+        #[graphql(desc = "Formation id to area of")] id: i32,
+        #[graphql(desc = "Area id")] area_id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1232,14 +1159,8 @@ impl MutationRoot {
     async fn set_formation_super_formation<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to super-formation of"
-        )]
-        id: i32,
-        #[graphql(
-            desc = "Super formation id"
-        )]
-        super_formation_id: i32,
+        #[graphql(desc = "Formation id to super-formation of")] id: i32,
+        #[graphql(desc = "Super formation id")] super_formation_id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1270,10 +1191,7 @@ impl MutationRoot {
     async fn clear_formation_area<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to area of"
-        )]
-        id: i32,
+        #[graphql(desc = "Formation id to area of")] id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1281,11 +1199,11 @@ impl MutationRoot {
         use climb_db::schema::formation_belongs_to;
 
         let formation_id = diesel::delete(
-            formation_belongs_to::table
-                .filter(formation_belongs_to::formation_id.eq(id)))
-            .returning(formation_belongs_to::formation_id)
-            .get_result(&mut conn)
-            .map_err(|e| e.to_string())?;
+            formation_belongs_to::table.filter(formation_belongs_to::formation_id.eq(id)),
+        )
+        .returning(formation_belongs_to::formation_id)
+        .get_result(&mut conn)
+        .map_err(|e| e.to_string())?;
 
         Ok(Formation(formation_id))
     }
@@ -1295,10 +1213,7 @@ impl MutationRoot {
     async fn clear_formation_super_formation<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Formation id to super-formation of"
-        )]
-        id: i32,
+        #[graphql(desc = "Formation id to super-formation of")] id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
@@ -1306,11 +1221,11 @@ impl MutationRoot {
         use climb_db::schema::formation_belongs_to;
 
         let formation_id = diesel::delete(
-            formation_belongs_to::table
-                .filter(formation_belongs_to::formation_id.eq(id)))
-            .returning(formation_belongs_to::formation_id)
-            .get_result(&mut conn)
-            .map_err(|e| e.to_string())?;
+            formation_belongs_to::table.filter(formation_belongs_to::formation_id.eq(id)),
+        )
+        .returning(formation_belongs_to::formation_id)
+        .get_result(&mut conn)
+        .map_err(|e| e.to_string())?;
 
         Ok(Formation(formation_id))
     }
@@ -1318,10 +1233,7 @@ impl MutationRoot {
     async fn remove_formation<'a>(
         &self,
         ctx: &Context<'a>,
-        #[graphql(
-            desc = "Removes formation with given id"
-        )]
-        id: i32,
+        #[graphql(desc = "Removes formation with given id")] id: i32,
     ) -> FieldResult<Formation> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
         let mut conn = pool.get().map_err(|e| e.to_string())?;
