@@ -143,6 +143,15 @@ impl Area {
     }
 }
 
+pub struct Ascent(i32);
+
+#[Object]
+impl Ascent {
+    async fn id(&self) -> &i32 {
+        &self.0
+    }
+}
+
 pub struct Climb(i32);
 
 #[Object]
@@ -239,6 +248,27 @@ impl Climb {
             .first::<Option<i32>>(&mut conn)
             .ok()?
             .map(Formation)
+    }
+
+    async fn ascents<'a>(&self, ctx: &Context<'a>) -> Vec<Ascent> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = match pool.get() {
+            Ok(connection) => connection,
+            Err(_) => return Vec::new(),
+        };
+
+        use climb_db::schema::ascents;
+
+        let data = match ascents::table
+            .filter(ascents::climb_id.eq(&self.0))
+            .select(ascents::id)
+            .load::<i32>(&mut conn)
+        {
+            Ok(ids) => ids,
+            Err(_) => Vec::new(),
+        };
+
+        data.into_iter().map(Ascent).collect()
     }
 }
 
