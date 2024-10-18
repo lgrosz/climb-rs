@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+use std::ops::Bound;
 use std::str::FromStr;
 
 use climbing_grades::verm;
@@ -5,7 +7,7 @@ use diesel::upsert::excluded;
 use diesel::PgConnection;
 use diesel::prelude::*;
 
-use crate::schema::{Grade, GradeType, KVPair};
+use crate::schema::{Grade, GradeType, KVPair, DateRange};
 
 pub fn set_area_names(conn: &mut PgConnection, id: i32, names: Vec<String>) -> Result<(), String> {
     use climb_db::schema::areas;
@@ -220,3 +222,71 @@ pub fn set_climb_formation_id(
 
     Ok(())
 }
+
+#[derive(Debug)]
+pub enum DateRangeError {
+    InvalidStartDate(String),
+    InvalidEndDate(String),
+}
+
+use std::fmt;
+
+impl fmt::Display for DateRangeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DateRangeError::InvalidStartDate(date) => write!(f, "Invalid start date: {}", date),
+            DateRangeError::InvalidEndDate(date) => write!(f, "Invalid end date: {}", date),
+        }
+    }
+}
+
+fn map_date_range_to_bounds(date_range: DateRange) -> Result<(Bound<NaiveDate>, Bound<NaiveDate>), DateRangeError> {
+    let start_bound = if date_range.start.is_empty() {
+        Bound::Unbounded
+    } else {
+        match NaiveDate::parse_and_remainder(date_range.start.as_str(), "%Y-%m-%d") {
+            Ok((date, _)) => Bound::Included(date),
+            Err(_) => return Err(DateRangeError::InvalidStartDate(date_range.start)),
+        }
+    };
+
+    let end_bound = if date_range.end.is_empty() {
+        Bound::Unbounded
+    } else {
+        match NaiveDate::parse_and_remainder(date_range.end.as_str(), "%Y-%m-%d") {
+            Ok((date, _)) => Bound::Included(date),
+            Err(_) => return Err(DateRangeError::InvalidEndDate(date_range.end)),
+        }
+    };
+
+    Ok((start_bound, end_bound))
+}
+
+pub fn set_ascent_ascent_date(
+    conn: &mut PgConnection,
+    id: i32,
+    ascent_date: Option<DateRange>,
+) -> Result<(), String> {
+    use climb_db::schema::ascents;
+
+    match ascent_date {
+        Some(date_range) => {
+            let ascent_date = map_date_range_to_bounds(date_range).map_err(|e| e.to_string())?;
+            diesel::update(ascents::table)
+                .filter(ascents::id.eq(id))
+                .set(ascents::ascent_date.eq(ascent_date))
+                .execute(conn)
+                .map_err(|e| e.to_string())?;
+            }
+        None => {
+            diesel::update(ascents::table)
+                .filter(ascents::id.eq(id))
+                .set(ascents::ascent_date.eq(diesel::dsl::sql("NULL")))
+                .execute(conn)
+                .map_err(|e| e.to_string())?;
+            }
+    }
+
+    Ok(())
+}
+
