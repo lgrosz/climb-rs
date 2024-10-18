@@ -7,6 +7,7 @@ edition = "2021"
 async-graphql = "7.0.7"
 async-graphql-axum = "7.0.7"
 axum = "0.7.5"
+chrono = "0.4.38"
 climb-db = { version = "0.1.0", path = "../climb-db" }
 climbing-grades = { git = "https://github.com/lgrosz/climbing-grades-rs", branch = "main" }
 diesel = { version = "2.2.2", features = ["postgres", "r2d2"] }

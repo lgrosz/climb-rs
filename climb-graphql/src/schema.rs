@@ -1,3 +1,5 @@
+use chrono::NaiveDate;
+use std::ops::Bound;
 use std::str::FromStr;
 
 use async_graphql::{Context, Enum, FieldResult, InputObject, Object, SimpleObject};
@@ -35,6 +37,13 @@ pub struct KVPair {
 pub struct Coordinate {
     pub latitude: f64,
     pub longitude: f64,
+}
+
+#[derive(SimpleObject, InputObject)]
+#[graphql(input_name = "DateRangeInput")]
+pub struct DateRange {
+    pub start: String,
+    pub end: String,
 }
 
 #[Object]
@@ -164,6 +173,29 @@ impl Ascent {
             .expect("All ascents should have a climb");
 
         Climb(climb_id)
+    }
+
+    async fn ascent_date<'a>(&self, ctx: &Context<'a>) -> Option<DateRange> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().ok()?;
+
+        use climb_db::schema::ascents;
+
+        ascents::table
+            .find(&self.0)
+            .select(ascents::ascent_date)
+            .first::<Option<(Bound<NaiveDate>, Bound<NaiveDate>)>>(&mut conn)
+            .ok()?
+            .map(|(start, end)| DateRange {
+                start: match start {
+                    Bound::Included(date) | Bound::Excluded(date) => date.to_string(),
+                    Bound::Unbounded => String::new(),
+                },
+                end: match end {
+                    Bound::Included(date) | Bound::Excluded(date) => date.to_string(),
+                    Bound::Unbounded => String::new(),
+                },
+            })
     }
 }
 
@@ -941,6 +973,7 @@ impl MutationRoot {
         &self,
         ctx: &Context<'a>,
         #[graphql(desc = "Id of the ascended climb")] climb_id: i32,
+        #[graphql(desc = "Date of ascent")] ascent_date: Option<DateRange>,
     ) -> FieldResult<Ascent> {
         let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
 
@@ -960,8 +993,44 @@ impl MutationRoot {
                 .returning(ascents::id)
                 .get_result::<i32>(conn)?;
 
+            if let Some(ascent_date) = ascent_date {
+                use crate::queries::set_ascent_ascent_date;
+                set_ascent_ascent_date(conn, ascent_id, Some(ascent_date))?;
+            }
+
             Ok(Ascent(ascent_id))
         })
+    }
+
+    async fn set_ascent_ascent_date<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(desc = "Id of the ascent")] id: i32,
+        #[graphql(desc = "Date of ascent")] ascent_date: DateRange,
+    ) -> FieldResult<Ascent> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use crate::queries::set_ascent_ascent_date;
+
+        set_ascent_ascent_date(&mut conn, id, Some(ascent_date))?;
+
+        Ok(Ascent(id))
+    }
+
+    async fn clear_ascent_ascent_date<'a>(
+        &self,
+        ctx: &Context<'a>,
+        #[graphql(desc = "Id of the ascent")] id: i32,
+    ) -> FieldResult<Ascent> {
+        let pool = ctx.data_unchecked::<Pool<ConnectionManager<PgConnection>>>();
+        let mut conn = pool.get().map_err(|e| e.to_string())?;
+
+        use crate::queries::set_ascent_ascent_date;
+
+        set_ascent_ascent_date(&mut conn, id, None)?;
+
+        Ok(Ascent(id))
     }
 
     async fn remove_ascent<'a>(
